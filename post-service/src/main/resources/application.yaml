@@ -1,3 +1,18 @@
 spring:
   application:
     name: post-service
+
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:55432/post_db
+    username: post_user
+    password: post_password
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
