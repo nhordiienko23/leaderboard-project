@@ -1,6 +1,7 @@
 package com.github.nhordiienko23.postservice.mapper;
 
 import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
+import com.github.nhordiienko23.postservice.dto.PostDto;
 import com.github.nhordiienko23.postservice.entity.Post;
 import org.mapstruct.Mapper;
 
@@ -8,5 +9,5 @@ import org.mapstruct.Mapper;
 public interface PostMapper {
 
     Post toEntity(PostCreationRequest request);
-    Post dto(Post post);
+    PostDto toDto(Post post);
 }
