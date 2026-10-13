@@ -75,5 +75,19 @@ services:
       KAFKA_CLUSTERS_0_NAME: post-service-kafka
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
 
+  leaderboard-db:
+    image: postgres:16-alpine
+    container_name: leaderboard-service-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: leaderboard_db
+      POSTGRES_USER: leaderboard_user
+      POSTGRES_PASSWORD: leaderboard_password
+    ports:
+      - "55433:5432"
+    volumes:
+      - leaderboard-db-data:/var/lib/postgresql/data
+
 volumes:
   post-db-data:
+  leaderboard-db-data:

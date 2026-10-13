@@ -1,8 +1,20 @@
 server:
   port: 8082
+
 spring:
   application:
     name: leaderboard-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:55433/leaderboard_db
+    username: leaderboard_user
+    password: leaderboard_password
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
   kafka:
     bootstrap-servers: localhost:9092
 
