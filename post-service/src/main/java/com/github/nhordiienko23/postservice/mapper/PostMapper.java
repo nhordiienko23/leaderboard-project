@@ -1,0 +1,13 @@
+package com.github.nhordiienko23.postservice.mapper;
+
+import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
+import com.github.nhordiienko23.postservice.dto.PostDto;
+import com.github.nhordiienko23.postservice.entity.Post;
+import org.mapstruct.Mapper;
+
+@Mapper(componentModel = "spring")
+public interface PostMapper {
+
+    Post toEntity(PostCreationRequest request);
+    PostDto toDto(Post post);
+}
