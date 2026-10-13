@@ -87,7 +87,17 @@ services:
       - "55433:5432"
     volumes:
       - leaderboard-db-data:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    container_name: leaderboard-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - leaderboard-redis-data:/data
+    command: redis-server --appendonly yes
 
 volumes:
   post-db-data:
   leaderboard-db-data:
+  leaderboard-redis-data:
