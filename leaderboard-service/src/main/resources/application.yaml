@@ -11,7 +11,7 @@ spring:
       port: 6379
       
   datasource:
-    url: jdbc:postgresql://localhost:55433/leaderboard_db
+    url: jdbc:postgresql://localhost:5434/leaderboard_db
     username: leaderboard_user
     password: leaderboard_password
     driver-class-name: org.postgresql.Driver
