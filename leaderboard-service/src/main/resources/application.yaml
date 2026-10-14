@@ -1,0 +1,36 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: leaderboard-service
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      
+  datasource:
+    url: jdbc:postgresql://localhost:5434/leaderboard_db
+    username: leaderboard_user
+    password: leaderboard_password
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    consumer:
+      group-id: leaderboard-service
+      auto-offset-reset: earliest
+
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+      properties:
+        spring.json.value.default.type: com.github.nhordiienko23.leaderboardservice.kafka.PostCreatedEvent
+        spring.json.trusted.packages: com.github.nhordiienko23.leaderboardservice.kafka
+        spring.json.use.type.headers: false
