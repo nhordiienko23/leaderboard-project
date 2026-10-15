@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface LeaderboardEntryRepository extends JpaRepository<LeaderboardEntry, Long> {
-    Optional<LeaderboardEntry> findByAuthorId(Long authorId);
+    Optional<LeaderboardEntry> findByUserId(Long userId);
 }

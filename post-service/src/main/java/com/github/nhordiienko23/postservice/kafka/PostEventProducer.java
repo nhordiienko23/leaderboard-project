@@ -9,25 +9,30 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 @Slf4j
 public class PostEventProducer {
-    private static final String TOPIC = "post-created";
-    private final KafkaTemplate<String, PostCreatedEvent> kafkaTemplate;
+    private final KafkaTemplate<String, ContentEvent> kafkaTemplate;
 
-    public void sendPostCreatedEvent(PostCreatedEvent event) {
-        kafkaTemplate.send(TOPIC, event)
+    public void publish(String topic, ContentEvent event) {
+        kafkaTemplate.send(topic,
+                        event.eventId().toString(),
+                        event
+                )
                 .whenComplete((result, exception) -> {
                     if (exception != null) {
-                        log.error("Failed to send PostCreatedEvent for postId={}",
-                                event.postId(),
+                        log.error("Failed to publish event: topic={}, eventId={},actionType={}",
+                                topic,
+                                event.eventId(),
+                                event.actionType(),
                                 exception);
                         return;
                     }
                     var metadata = result.getRecordMetadata();
 
-                    log.info("PostCreatedEvent sent successfully: topic={}, partition={}, offset={}, postId={}",
+                    log.info("Event published successfully: topic={}, partition={}, offset={}, eventId={}, actionType={}",
                             metadata.topic(),
                             metadata.partition(),
                             metadata.offset(),
-                            event.postId());
+                            event.eventId(),
+                            event.actionType());
                 });
     }
 }

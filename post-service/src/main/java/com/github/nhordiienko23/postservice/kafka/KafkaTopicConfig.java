@@ -10,7 +10,7 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic postCreatedTopic() {
         return new NewTopic(
-                "post-created",
+                KafkaTopics.POST_EVENTS,
                 1,
                 (short) 1
         );

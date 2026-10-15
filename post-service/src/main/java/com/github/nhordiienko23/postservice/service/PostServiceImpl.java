@@ -1,9 +1,10 @@
 package com.github.nhordiienko23.postservice.service;
 
 import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
-import com.github.nhordiienko23.postservice.dto.PostDto;
+import com.github.nhordiienko23.postservice.dto.PostDTO;
 import com.github.nhordiienko23.postservice.entity.Post;
-import com.github.nhordiienko23.postservice.kafka.PostCreatedEvent;
+import com.github.nhordiienko23.postservice.kafka.ContentEvent;
+import com.github.nhordiienko23.postservice.kafka.KafkaTopics;
 import com.github.nhordiienko23.postservice.kafka.PostEventProducer;
 import com.github.nhordiienko23.postservice.mapper.PostEventMapper;
 import com.github.nhordiienko23.postservice.mapper.PostMapper;
@@ -23,17 +24,38 @@ public class PostServiceImpl implements PostService {
     private final PostEventProducer postEventProducer;
 
     @Override
-    public PostDto createPost(PostCreationRequest request) {
-        Post post = postMapper.toEntity(request);
+    public PostDTO createPost(Long userId, PostCreationRequest request) {
+        Post post = postMapper.toEntity(userId, request);
         Post savedPost = postRepository.save(post);
         log.info(
-                "New post was created: postId={}, authorId={}",
+                "New post was created: postId={}, userId={}",
                 savedPost.getId(),
-                savedPost.getAuthorId()
+                savedPost.getUserId()
         );
-        PostCreatedEvent event = postEventMapper.toEvent(savedPost);
-        postEventProducer.sendPostCreatedEvent(event);
-        return postMapper.toDto(savedPost);
+        ContentEvent event = postEventMapper.toCreatedEvent(savedPost);
+        postEventProducer.publish(KafkaTopics.POST_EVENTS, event);
+        return postMapper.toDTO(savedPost);
+    }
+    @Override
+    public void deletePost(Long userId, Long postId) {
+        Post post = postRepository.findByUserIdAndId(userId,postId)
+                .orElseThrow(()->new IllegalArgumentException("post doesn't exists"));
+
+        postRepository.delete(post);
+        log.info(
+                "Post was deleted: postId={}, userId={}",
+                post.getId(),
+                post.getUserId()
+        );
+        ContentEvent event = postEventMapper.toDeletedEvent(post);
+        postEventProducer.publish(KafkaTopics.POST_EVENTS, event);
+    }
+
+    @Override
+    public PostDTO getPostById(Long id) {
+        Post post = postRepository.findById(id)
+                .orElseThrow(()->  new IllegalArgumentException("post not found"));
+        return postMapper.toDTO(post);
     }
 
 }

@@ -9,15 +9,17 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-public class PostCreatedEventListener {
+public class PostEventListener {
     private final LeaderboardService leaderboardService;
-    @KafkaListener(topics = "post-created")
-    public void handle(PostCreatedEvent event) {
+
+    @KafkaListener(topics = KafkaTopics.POST_EVENTS)
+    public void handlePostEvent(ContentEvent event) {
         log.info(
-                "Received PostCreatedEvent: postId={}, authorId={}",
-                event.postId(),
-                event.authorId()
+                "Received post event: eventId={}, userId={}, actionType={}",
+                event.eventId(),
+                event.userId(),
+                event.actionType()
         );
-        leaderboardService.processPostCreated(event);
+        leaderboardService.processPostEvent(event);
     }
 }

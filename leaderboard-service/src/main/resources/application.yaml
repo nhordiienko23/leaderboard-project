@@ -31,6 +31,6 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
 
       properties:
-        spring.json.value.default.type: com.github.nhordiienko23.leaderboardservice.kafka.PostCreatedEvent
+        spring.json.value.default.type: com.github.nhordiienko23.leaderboardservice.kafka.ContentEvent
         spring.json.trusted.packages: com.github.nhordiienko23.leaderboardservice.kafka
         spring.json.use.type.headers: false
