@@ -20,10 +20,17 @@ public class LeaderboardRedisInitializer implements CommandLineRunner {
         var entries = leaderboardEntryRepository.findAll();
 
         for (var entry : entries) {
+            String userId = entry.getUserId().toString();
             redisTemplate.opsForZSet().add(
                     "leaderboard",
-                    entry.getAuthorId().toString(),
+                    userId,
                     entry.getPoints().doubleValue()
+            );
+
+            redisTemplate.opsForHash().put(
+                    "user:" + userId,
+                    "username",
+                    entry.getUsername()
             );
         }
     }

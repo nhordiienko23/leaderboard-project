@@ -16,8 +16,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class LeaderboardEntryController {
     private final LeaderboardService leaderboardService;
-    @GetMapping
-    public ResponseEntity<List<LeaderboardEntryDTO>> getLeaderboard(@RequestParam(defaultValue = "10") int limit){
-        return ResponseEntity.ok(leaderboardService.getLeaderboard(limit));
+    @GetMapping("/top-10")
+    public ResponseEntity<List<LeaderboardEntryDTO>> getTop10(){
+        return ResponseEntity.ok(leaderboardService.getLeaderboard(10));
+    }
+    @GetMapping("/top-100")
+    public ResponseEntity<List<LeaderboardEntryDTO>> getTop100(){
+        return ResponseEntity.ok(leaderboardService.getLeaderboard(100));
     }
 }

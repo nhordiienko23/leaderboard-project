@@ -1,7 +1,11 @@
 package com.github.nhordiienko23.leaderboardservice.dto;
 
+import lombok.Builder;
+
+@Builder
 public record LeaderboardEntryDTO(
-       Long authorId,
-       Long points
+        Long userId,
+        String username,
+        Long points
 ) {
 }

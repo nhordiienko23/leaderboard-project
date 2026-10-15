@@ -2,16 +2,15 @@ package com.github.nhordiienko23.leaderboardservice.service;
 
 import com.github.nhordiienko23.leaderboardservice.dto.LeaderboardEntryDTO;
 import com.github.nhordiienko23.leaderboardservice.entity.LeaderboardEntry;
-import com.github.nhordiienko23.leaderboardservice.entity.ProcessedPost;
-import com.github.nhordiienko23.leaderboardservice.kafka.PostCreatedEvent;
-import com.github.nhordiienko23.leaderboardservice.mapper.LeaderboardMapper;
+import com.github.nhordiienko23.leaderboardservice.entity.ProcessedEvent;
+import com.github.nhordiienko23.leaderboardservice.kafka.ActionType;
+import com.github.nhordiienko23.leaderboardservice.kafka.ContentEvent;
 import com.github.nhordiienko23.leaderboardservice.repository.LeaderboardEntryRepository;
-import com.github.nhordiienko23.leaderboardservice.repository.ProcessedPostRepository;
+import com.github.nhordiienko23.leaderboardservice.repository.ProcessedEventRepository;
 import com.github.nhordiienko23.leaderboardservice.score.ScorePoints;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -22,59 +21,108 @@ import java.util.List;
 @Slf4j
 public class LeaderboardServiceImpl implements LeaderboardService {
     private final LeaderboardEntryRepository leaderboardEntryRepository;
-    private final ProcessedPostRepository processedPostRepository;
-    private final LeaderboardMapper leaderboardMapper;
+    private final ProcessedEventRepository processedEventRepository;
     private final StringRedisTemplate redisTemplate;
 
     @Override
     @Transactional
-    public void processPostCreated(PostCreatedEvent event) {
-        if (processedPostRepository.existsById(event.postId()))
-            return;
-        LeaderboardEntry entry = leaderboardEntryRepository.findByAuthorId(event.authorId())
-                .orElseGet(() -> LeaderboardEntry.builder()
-                        .authorId(event.authorId())
-                        .points(0L)
-                        .build());
-
-        entry.setPoints(entry.getPoints() + ScorePoints.POST_CREATED);
-        leaderboardEntryRepository.save(entry);
-
-        redisTemplate.opsForZSet().add(
-                "leaderboard",
-                entry.getAuthorId().toString(),
-                entry.getPoints().doubleValue()
-        );
-
-        processedPostRepository.save(ProcessedPost.builder()
-                .postId(event.postId())
-                .build());
-        log.info(
-                "Author {} received {} points for creating a post. Total score: {} points.",
-                entry.getAuthorId(),
-                ScorePoints.POST_CREATED,
-                entry.getPoints()
-        );
+    public void processPostEvent(ContentEvent event) {
+        processContentEvent(event,EventType.POST,ScorePoints.POST);
     }
+
+
+
 
     @Override
     public List<LeaderboardEntryDTO> getLeaderboard(int limit) {
-        if (limit <= 0) {
-            throw new IllegalArgumentException("Limit must be positive");
-        }
 
-        var authorIds = redisTemplate.opsForZSet()
-                .reverseRange("leaderboard", 0, limit - 1);
+        var users = redisTemplate.opsForZSet()
+                .reverseRangeWithScores("leaderboard", 0, limit - 1);
 
-        if (authorIds == null || authorIds.isEmpty()) {
+        if (users == null || users.isEmpty()) {
             return List.of();
         }
 
-        return authorIds.stream()
-                .map(Long::valueOf)
-                .map(leaderboardEntryRepository::findByAuthorId)
-                .flatMap(java.util.Optional::stream)
-                .map(leaderboardMapper::toDTO)
-                .toList();
+        return users.stream()
+                .map(user -> {
+                    String userId = user.getValue();
+
+                    String username = (String) redisTemplate.opsForHash()
+                            .get("user:" + userId, "username");
+
+                    return LeaderboardEntryDTO.builder()
+                            .userId(Long.valueOf(userId))
+                            .username(username)
+                            .points(user.getScore().longValue())
+                            .build();
+                }).toList();
+    }
+
+    private void processContentEvent(
+            ContentEvent event,
+            EventType eventType,
+            long points
+    ) {
+        String type = eventType.name();
+        String action = event.actionType().name();
+
+        if (processedEventRepository.existsByEventIdAndEventTypeAndActionType(
+                event.eventId(), type, action)) {
+            log.debug(
+                    "Duplicate event skipped: type={}, eventId={}, action={}",
+                    type, event.eventId(), action
+            );
+            return;
+        }
+
+        LeaderboardEntry entry = leaderboardEntryRepository
+                .findByUserId(event.userId())
+                .orElseGet(() -> LeaderboardEntry.builder()
+                        .userId(event.userId())
+                        .username("user-" + event.userId())
+                        .points(0L)
+                        .build());
+
+        long delta = event.actionType() == ActionType.CREATED
+                ? points
+                : -points;
+
+        long previousPoints = entry.getPoints();
+        long newPoints = Math.max(0L, previousPoints + delta);
+
+        entry.setPoints(newPoints);
+        leaderboardEntryRepository.save(entry);
+
+        processedEventRepository.save(ProcessedEvent.builder()
+                .eventId(event.eventId())
+                .eventType(type)
+                .actionType(action)
+                .build());
+
+        String userId = entry.getUserId().toString();
+
+        redisTemplate.opsForZSet().add(
+                "leaderboard",
+                userId,
+                newPoints
+        );
+
+        redisTemplate.opsForHash().put(
+                "user:" + userId,
+                "username",
+                entry.getUsername()
+        );
+
+        log.info(
+                "Leaderboard event processed: type={}, eventId={}, action={}, " +
+                        "userId={}, pointsDelta={}, score={} -> {}",
+                type,
+                event.eventId(),
+                action,
+                userId,
+                delta,
+                previousPoints,
+                newPoints
+        );
     }
 }
