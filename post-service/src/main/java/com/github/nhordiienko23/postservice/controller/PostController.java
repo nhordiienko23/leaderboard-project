@@ -2,12 +2,18 @@ package com.github.nhordiienko23.postservice.controller;
 
 import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
 import com.github.nhordiienko23.postservice.dto.PostDTO;
+import com.github.nhordiienko23.postservice.dto.PostUpdateRequest;
 import com.github.nhordiienko23.postservice.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -39,5 +45,19 @@ public class PostController {
     ){
         return ResponseEntity.status(HttpStatus.OK)
                 .body(postService.getPostById(id));
+    }
+
+    @GetMapping
+    public ResponseEntity<Page<PostDTO>> getAllPosts(@ParameterObject Pageable pageable){
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(postService.getAllPosts(pageable));
+    }
+
+    @PutMapping
+    public ResponseEntity<PostDTO> updatePost(
+            @RequestHeader("X-User-Id") Long userId,
+            @Valid @RequestBody PostUpdateRequest request){
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(postService.updatePost(userId,request));
     }
 }
