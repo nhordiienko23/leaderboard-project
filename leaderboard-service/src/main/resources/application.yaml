@@ -9,6 +9,7 @@ spring:
     redis:
       host: localhost
       port: 6379
+      timeout: 3s
       
   datasource:
     url: jdbc:postgresql://localhost:5434/leaderboard_db
@@ -34,3 +35,4 @@ spring:
         spring.json.value.default.type: com.github.nhordiienko23.leaderboardservice.kafka.ContentEvent
         spring.json.trusted.packages: com.github.nhordiienko23.leaderboardservice.kafka
         spring.json.use.type.headers: false
+

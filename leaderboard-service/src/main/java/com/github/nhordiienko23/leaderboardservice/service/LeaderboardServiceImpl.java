@@ -3,10 +3,12 @@ package com.github.nhordiienko23.leaderboardservice.service;
 import com.github.nhordiienko23.leaderboardservice.dto.LeaderboardEntryDTO;
 import com.github.nhordiienko23.leaderboardservice.entity.LeaderboardEntry;
 import com.github.nhordiienko23.leaderboardservice.entity.ProcessedEvent;
+import com.github.nhordiienko23.leaderboardservice.entity.RedisSyncOutbox;
 import com.github.nhordiienko23.leaderboardservice.kafka.ActionType;
 import com.github.nhordiienko23.leaderboardservice.kafka.ContentEvent;
 import com.github.nhordiienko23.leaderboardservice.repository.LeaderboardEntryRepository;
 import com.github.nhordiienko23.leaderboardservice.repository.ProcessedEventRepository;
+import com.github.nhordiienko23.leaderboardservice.repository.RedisSyncOutboxRepository;
 import com.github.nhordiienko23.leaderboardservice.score.ScorePoints;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -23,14 +25,13 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     private final LeaderboardEntryRepository leaderboardEntryRepository;
     private final ProcessedEventRepository processedEventRepository;
     private final StringRedisTemplate redisTemplate;
+    private final RedisSyncOutboxRepository redisSyncOutboxRepository;
 
     @Override
     @Transactional
     public void processPostEvent(ContentEvent event) {
-        processContentEvent(event,EventType.POST,ScorePoints.POST);
+        processContentEvent(event, EventType.POST, ScorePoints.POST);
     }
-
-
 
 
     @Override
@@ -99,20 +100,15 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 .actionType(action)
                 .build());
 
+
+        redisSyncOutboxRepository.save(RedisSyncOutbox.builder()
+                .userId(entry.getUserId())
+                .processed(false)
+                .attempts(0)
+                .build());
+
         String userId = entry.getUserId().toString();
-
-        redisTemplate.opsForZSet().add(
-                "leaderboard",
-                userId,
-                newPoints
-        );
-
-        redisTemplate.opsForHash().put(
-                "user:" + userId,
-                "username",
-                entry.getUsername()
-        );
-
+        
         log.info(
                 "Leaderboard event processed: type={}, eventId={}, action={}, " +
                         "userId={}, pointsDelta={}, score={} -> {}",
