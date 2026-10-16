@@ -4,6 +4,7 @@ import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
 import com.github.nhordiienko23.postservice.dto.PostDTO;
 import com.github.nhordiienko23.postservice.entity.OutboxEntry;
 import com.github.nhordiienko23.postservice.entity.Post;
+import com.github.nhordiienko23.postservice.exception.PostNotFoundException;
 import com.github.nhordiienko23.postservice.mapper.OutboxEntryMapper;
 import com.github.nhordiienko23.postservice.mapper.PostMapper;
 import com.github.nhordiienko23.postservice.repository.OutboxRepository;
@@ -43,8 +44,10 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void deletePost(Long userId, Long postId) {
         Post post = postRepository.findByUserIdAndId(userId, postId)
-                .orElseThrow(() -> new IllegalArgumentException("post doesn't exists"));
-
+                .orElseThrow(() -> new PostNotFoundException(
+                        "Post with id=%d was not found for user id=%d"
+                                .formatted(postId, userId)
+                ));
 
         postRepository.delete(post);
         OutboxEntry outboxEntry = outboxEntryMapper.toDeletedOutboxEntry(post);
@@ -59,7 +62,7 @@ public class PostServiceImpl implements PostService {
     @Override
     public PostDTO getPostById(Long id) {
         Post post = postRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("post not found"));
+                .orElseThrow(() -> new PostNotFoundException("Post with id=" + id + " not found"));
         return postMapper.toDTO(post);
     }
 
