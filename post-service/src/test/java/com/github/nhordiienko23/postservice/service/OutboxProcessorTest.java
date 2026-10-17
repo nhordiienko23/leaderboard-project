@@ -1,16 +1,18 @@
 package com.github.nhordiienko23.postservice.service;
 
+import com.github.nhordiienko23.leaderboardcontract.event.ActionType;
+import com.github.nhordiienko23.leaderboardcontract.event.EventType;
+import com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent;
+import com.github.nhordiienko23.leaderboardcontract.event.ParticipantRole;
+import com.github.nhordiienko23.leaderboardcontract.event.ScoreParticipant;
 import com.github.nhordiienko23.postservice.entity.OutboxEntry;
-import com.github.nhordiienko23.postservice.kafka.ActionType;
-import com.github.nhordiienko23.postservice.kafka.ContentEvent;
-import com.github.nhordiienko23.postservice.kafka.EventType;
 import com.github.nhordiienko23.postservice.kafka.KafkaTopics;
 import com.github.nhordiienko23.postservice.kafka.PostEventProducer;
-import com.github.nhordiienko23.postservice.mapper.OutboxEntryMapper;
 import com.github.nhordiienko23.postservice.repository.OutboxRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -19,6 +21,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,9 +35,6 @@ class OutboxProcessorTest {
     @Mock
     private PostEventProducer postEventProducer;
 
-    @Mock
-    private OutboxEntryMapper outboxEntryMapper;
-
     @InjectMocks
     private OutboxProcessor outboxProcessor;
 
@@ -41,11 +42,9 @@ class OutboxProcessorTest {
     @DisplayName("Should publish pending entries successfully")
     void shouldProcessPendingEntries() {
         OutboxEntry entry = createOutboxEntry(1L);
-        ContentEvent event = createContentEvent(1L);
 
         when(outboxRepository.findTop100ByPublishedFalseOrderByIdAsc())
                 .thenReturn(List.of(entry));
-        when(outboxEntryMapper.toContentEvent(entry)).thenReturn(event);
 
         outboxProcessor.processPendingEntries();
 
@@ -54,7 +53,29 @@ class OutboxProcessorTest {
         assertNull(entry.getLastError());
         assertEquals(0L, entry.getAttempts());
 
-        verify(postEventProducer).publish(KafkaTopics.POST_EVENTS, event);
+        ArgumentCaptor<LeaderboardEvent> eventCaptor =
+                ArgumentCaptor.forClass(LeaderboardEvent.class);
+
+        verify(postEventProducer).publish(
+                eq(KafkaTopics.LEADERBOARD_EVENTS),
+                eventCaptor.capture()
+        );
+
+        LeaderboardEvent event = eventCaptor.getValue();
+
+        assertEquals(1L, event.eventId());
+        assertEquals(EventType.POST, event.eventType());
+        assertEquals(ActionType.CREATED, event.actionType());
+        assertEquals(101L, event.entityId());
+
+        assertEquals(
+                List.of(new ScoreParticipant(
+                        23L,
+                        ParticipantRole.POST_AUTHOR
+                )),
+                event.participants()
+        );
+
         verify(outboxRepository).saveAll(List.of(entry));
     }
 
@@ -62,15 +83,16 @@ class OutboxProcessorTest {
     @DisplayName("Should increment attempts when publishing fails")
     void shouldIncrementAttemptsWhenPublishingFails() {
         OutboxEntry entry = createOutboxEntry(1L);
-        ContentEvent event = createContentEvent(1L);
 
         when(outboxRepository.findTop100ByPublishedFalseOrderByIdAsc())
                 .thenReturn(List.of(entry));
-        when(outboxEntryMapper.toContentEvent(entry)).thenReturn(event);
 
         doThrow(new IllegalStateException("Kafka unavailable"))
                 .when(postEventProducer)
-                .publish(KafkaTopics.POST_EVENTS, event);
+                .publish(
+                        eq(KafkaTopics.LEADERBOARD_EVENTS),
+                        any(LeaderboardEvent.class)
+                );
 
         outboxProcessor.processPendingEntries();
 
@@ -79,25 +101,29 @@ class OutboxProcessorTest {
         assertEquals("Kafka unavailable", entry.getLastError());
         assertEquals(1L, entry.getAttempts());
 
-        verify(postEventProducer).publish(KafkaTopics.POST_EVENTS, event);
+        verify(postEventProducer).publish(
+                eq(KafkaTopics.LEADERBOARD_EVENTS),
+                any(LeaderboardEvent.class)
+        );
+
         verify(outboxRepository).saveAll(List.of(entry));
     }
 
     @Test
-    @DisplayName("Should publish an entry successfully after a failed attempt")
+    @DisplayName("Should publish successfully after a failed attempt")
     void shouldProcessAfterFail() {
         OutboxEntry entry = createOutboxEntry(1L);
-        ContentEvent event = createContentEvent(1L);
 
         when(outboxRepository.findTop100ByPublishedFalseOrderByIdAsc())
                 .thenReturn(List.of(entry));
-        when(outboxEntryMapper.toContentEvent(entry)).thenReturn(event);
 
-        doAnswer(invocation -> {
-            throw new IllegalStateException("Kafka unavailable");
-        }).doNothing()
+        doThrow(new IllegalStateException("Kafka unavailable"))
+                .doNothing()
                 .when(postEventProducer)
-                .publish(KafkaTopics.POST_EVENTS, event);
+                .publish(
+                        eq(KafkaTopics.LEADERBOARD_EVENTS),
+                        any(LeaderboardEvent.class)
+                );
 
         // First attempt fails.
         outboxProcessor.processPendingEntries();
@@ -114,8 +140,11 @@ class OutboxProcessorTest {
         assertNull(entry.getLastError());
         assertEquals(1L, entry.getAttempts());
 
-        verify(postEventProducer, times(2))
-                .publish(KafkaTopics.POST_EVENTS, event);
+        verify(postEventProducer, times(2)).publish(
+                eq(KafkaTopics.LEADERBOARD_EVENTS),
+                any(LeaderboardEvent.class)
+        );
+
         verify(outboxRepository, times(2))
                 .saveAll(List.of(entry));
     }
@@ -127,28 +156,21 @@ class OutboxProcessorTest {
         OutboxEntry second = createOutboxEntry(2L);
         OutboxEntry third = createOutboxEntry(3L);
 
-        ContentEvent firstEvent = createContentEvent(1L);
-        ContentEvent secondEvent = createContentEvent(2L);
-        ContentEvent thirdEvent = createContentEvent(3L);
-
         when(outboxRepository.findTop100ByPublishedFalseOrderByIdAsc())
                 .thenReturn(List.of(first, second, third));
 
-        when(outboxEntryMapper.toContentEvent(first)).thenReturn(firstEvent);
-        when(outboxEntryMapper.toContentEvent(second)).thenReturn(secondEvent);
-        when(outboxEntryMapper.toContentEvent(third)).thenReturn(thirdEvent);
-
-        // Fail only when the second event is published.
         doAnswer(invocation -> {
-            ContentEvent event = invocation.getArgument(1);
+            LeaderboardEvent event = invocation.getArgument(1);
 
             if (event.eventId().equals(2L)) {
                 throw new IllegalStateException("Kafka unavailable");
             }
 
             return null;
-        }).when(postEventProducer)
-                .publish(eq(KafkaTopics.POST_EVENTS), any(ContentEvent.class));
+        }).when(postEventProducer).publish(
+                eq(KafkaTopics.LEADERBOARD_EVENTS),
+                any(LeaderboardEvent.class)
+        );
 
         outboxProcessor.processPendingEntries();
 
@@ -164,30 +186,27 @@ class OutboxProcessorTest {
         assertEquals("Kafka unavailable", second.getLastError());
         assertNull(third.getLastError());
 
-        verify(postEventProducer).publish(KafkaTopics.POST_EVENTS, firstEvent);
-        verify(postEventProducer).publish(KafkaTopics.POST_EVENTS, secondEvent);
-        verify(postEventProducer).publish(KafkaTopics.POST_EVENTS, thirdEvent);
+        verify(postEventProducer, times(3)).publish(
+                eq(KafkaTopics.LEADERBOARD_EVENTS),
+                any(LeaderboardEvent.class)
+        );
 
-        verify(outboxRepository).saveAll(List.of(first, second, third));
+        verify(outboxRepository)
+                .saveAll(List.of(first, second, third));
     }
 
-    private ContentEvent createContentEvent(Long eventId) {
-        return ContentEvent.builder()
-                .eventId(eventId)
-                .userId(23L)
-                .actionType(ActionType.CREATED)
-                .build();
-    }
-
-    private OutboxEntry createOutboxEntry(Long eventId) {
+    private OutboxEntry createOutboxEntry(Long id) {
         return OutboxEntry.builder()
-                .id(eventId)
-                .eventId(eventId)
-                .userId(23L)
+                .id(id)
+                .contentId(100L + id)
+                .eventType(EventType.POST)
+                .actionType(ActionType.CREATED)
+                .topic(KafkaTopics.LEADERBOARD_EVENTS)
+                .actorId(23L)
+                .targetAuthorId(null)
+                .contentAuthorId(23L)
                 .published(false)
                 .lastError(null)
-                .topic(KafkaTopics.POST_EVENTS)
-                .eventType(EventType.POST)
                 .createdAt(LocalDateTime.now())
                 .attempts(0L)
                 .build();

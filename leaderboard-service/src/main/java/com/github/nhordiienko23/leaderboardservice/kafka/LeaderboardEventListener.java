@@ -1,5 +1,6 @@
 package com.github.nhordiienko23.leaderboardservice.kafka;
 
+import com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent;
 import com.github.nhordiienko23.leaderboardservice.service.LeaderboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,19 +8,23 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-@Slf4j
 @RequiredArgsConstructor
-public class PostEventListener {
+@Slf4j
+public class LeaderboardEventListener {
+
     private final LeaderboardService leaderboardService;
 
-    @KafkaListener(topics = KafkaTopics.POST_EVENTS)
-    public void handlePostEvent(ContentEvent event) {
+    @KafkaListener(topics = KafkaTopics.LEADERBOARD_EVENTS)
+    public void handleLeaderboardEvent(LeaderboardEvent event) {
         log.info(
-                "Received post event: eventId={}, userId={}, actionType={}",
+                "Received leaderboard event: eventId={}, entityId={}, "
+                        + "eventType={}, actionType={}",
                 event.eventId(),
-                event.userId(),
+                event.entityId(),
+                event.eventType(),
                 event.actionType()
         );
-        leaderboardService.processPostEvent(event);
+
+        leaderboardService.processLeaderboardEvent(event);
     }
 }

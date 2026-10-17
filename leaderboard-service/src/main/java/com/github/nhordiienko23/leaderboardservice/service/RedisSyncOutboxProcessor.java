@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,14 +20,21 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RedisSyncOutboxProcessor {
 
+    private static final String LEADERBOARD_KEY = "leaderboard";
+
     private final RedisSyncOutboxRepository redisSyncOutboxRepository;
     private final LeaderboardEntryRepository leaderboardEntryRepository;
     private final StringRedisTemplate redisTemplate;
 
     @Scheduled(fixedDelay = 1000)
+    @Transactional
     public void processPendingTasks() {
-        var tasks = redisSyncOutboxRepository
+        List<RedisSyncOutbox> tasks = redisSyncOutboxRepository
                 .findTop100ByProcessedFalseOrderByIdAsc();
+
+        if (tasks.isEmpty()) {
+            return;
+        }
 
         Map<Long, List<RedisSyncOutbox>> tasksByUser = tasks.stream()
                 .collect(Collectors.groupingBy(RedisSyncOutbox::getUserId));
@@ -42,9 +50,9 @@ public class RedisSyncOutboxProcessor {
                         ));
 
                 redisTemplate.opsForZSet().add(
-                        "leaderboard",
+                        LEADERBOARD_KEY,
                         userId.toString(),
-                        entry.getPoints()
+                        entry.getPoints().doubleValue()
                 );
 
                 redisTemplate.opsForHash().put(

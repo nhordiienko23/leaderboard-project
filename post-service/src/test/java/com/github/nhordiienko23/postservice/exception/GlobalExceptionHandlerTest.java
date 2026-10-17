@@ -1,15 +1,18 @@
 package com.github.nhordiienko23.postservice.exception;
 
+import com.github.nhordiienko23.postservice.exception.accessdenied.AccessDeniedException;
+import com.github.nhordiienko23.postservice.exception.accessdenied.PostAccessDeniedException;
+import com.github.nhordiienko23.postservice.exception.notfound.PostNotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.core.MethodParameter;
 
 import java.lang.reflect.Method;
 
@@ -22,6 +25,37 @@ class GlobalExceptionHandlerTest {
             new GlobalExceptionHandler();
 
     @Test
+    @DisplayName("Should return 403 when access is denied")
+    void shouldReturn403WhenAccessIsDenied() {
+        MockHttpServletRequest request =
+                createRequest("DELETE", "/api/posts/42");
+
+        AccessDeniedException exception =
+                new PostAccessDeniedException(
+                        "You are not allowed to modify this post"
+                );
+
+        var response =
+                exceptionHandler.handleAccessDenied(exception, request);
+
+        assertEquals(
+                HttpStatus.FORBIDDEN.value(),
+                response.getStatusCode().value()
+        );
+
+        assertNotNull(response.getBody());
+        assertEquals(403, response.getBody().status());
+        assertEquals("Forbidden", response.getBody().error());
+        assertEquals(
+                "You are not allowed to modify this post",
+                response.getBody().message()
+        );
+        assertEquals("/api/posts/42", response.getBody().path());
+        assertNotNull(response.getBody().timestamp());
+        assertTrue(response.getBody().fieldErrors().isEmpty());
+    }
+
+    @Test
     @DisplayName("Should return 404 when a resource is not found")
     void shouldReturn404WhenResourceNotFound() {
         MockHttpServletRequest request =
@@ -30,17 +64,21 @@ class GlobalExceptionHandlerTest {
         PostNotFoundException exception =
                 new PostNotFoundException("Post with id=42 not found");
 
-        var response = exceptionHandler.handleNotFound(exception, request);
+        var response =
+                exceptionHandler.handleNotFound(exception, request);
 
-        assertEquals(HttpStatus.NOT_FOUND.value(),
-                response.getStatusCode().value());
+        assertEquals(
+                HttpStatus.NOT_FOUND.value(),
+                response.getStatusCode().value()
+        );
 
         assertNotNull(response.getBody());
-        assertEquals(HttpStatus.NOT_FOUND.value(),
-                response.getBody().status());
+        assertEquals(404, response.getBody().status());
         assertEquals("Not Found", response.getBody().error());
-        assertEquals("Post with id=42 not found",
-                response.getBody().message());
+        assertEquals(
+                "Post with id=42 not found",
+                response.getBody().message()
+        );
         assertEquals("/api/posts/42", response.getBody().path());
         assertNotNull(response.getBody().timestamp());
         assertTrue(response.getBody().fieldErrors().isEmpty());
@@ -78,14 +116,18 @@ class GlobalExceptionHandlerTest {
         var response =
                 exceptionHandler.handleValidation(exception, request);
 
-        assertEquals(HttpStatus.BAD_REQUEST.value(),
-                response.getStatusCode().value());
+        assertEquals(
+                HttpStatus.BAD_REQUEST.value(),
+                response.getStatusCode().value()
+        );
 
         assertNotNull(response.getBody());
         assertEquals(400, response.getBody().status());
         assertEquals("Bad Request", response.getBody().error());
-        assertEquals("Request validation failed.",
-                response.getBody().message());
+        assertEquals(
+                "Request validation failed.",
+                response.getBody().message()
+        );
         assertEquals("/api/posts", response.getBody().path());
         assertEquals(
                 "must not be blank",
@@ -103,24 +145,27 @@ class GlobalExceptionHandlerTest {
                 "Internal database credentials must remain private"
         );
 
-        var response =
-                exceptionHandler.handleUnexpectedException(exception, request);
+        var response = exceptionHandler.handleUnexpectedException(
+                exception,
+                request
+        );
 
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                response.getStatusCode().value());
+        assertEquals(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                response.getStatusCode().value()
+        );
 
         assertNotNull(response.getBody());
         assertEquals(500, response.getBody().status());
-        assertEquals("Internal Server Error",
-                response.getBody().error());
+        assertEquals("Internal Server Error", response.getBody().error());
         assertEquals(
                 "An unexpected error occurred. Please try again later.",
                 response.getBody().message()
         );
         assertEquals("/api/posts", response.getBody().path());
-
-        assertFalse(response.getBody().message()
-                .contains("credentials"));
+        assertFalse(
+                response.getBody().message().contains("credentials")
+        );
     }
 
     @Test
@@ -139,8 +184,10 @@ class GlobalExceptionHandlerTest {
                 request
         );
 
-        assertEquals(HttpStatus.CONFLICT.value(),
-                response.getStatusCode().value());
+        assertEquals(
+                HttpStatus.CONFLICT.value(),
+                response.getStatusCode().value()
+        );
 
         assertNotNull(response.getBody());
         assertEquals(409, response.getBody().status());
@@ -161,11 +208,14 @@ class GlobalExceptionHandlerTest {
         var response =
                 exceptionHandler.handleInvalidRequestBody(request);
 
-        assertEquals(HttpStatus.BAD_REQUEST.value(),
-                response.getStatusCode().value());
+        assertEquals(
+                HttpStatus.BAD_REQUEST.value(),
+                response.getStatusCode().value()
+        );
 
         assertNotNull(response.getBody());
         assertEquals(400, response.getBody().status());
+        assertEquals("Bad Request", response.getBody().error());
         assertEquals(
                 "Request body is missing or malformed.",
                 response.getBody().message()
