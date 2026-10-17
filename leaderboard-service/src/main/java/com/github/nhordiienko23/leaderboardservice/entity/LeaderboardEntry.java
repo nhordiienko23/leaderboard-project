@@ -18,7 +18,7 @@ public class LeaderboardEntry {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id",unique = true, nullable = false)
+    @Column(name = "user_id", unique = true, nullable = false)
     private Long userId;
 
     @Column(unique = true, nullable = false)
@@ -29,10 +29,9 @@ public class LeaderboardEntry {
 
     private LocalDateTime updatedAt;
 
-    @PreUpdate
     @PrePersist
-    protected void onCreate(){
+    @PreUpdate
+    protected void onCreate() {
         updatedAt = LocalDateTime.now();
     }
 }
-

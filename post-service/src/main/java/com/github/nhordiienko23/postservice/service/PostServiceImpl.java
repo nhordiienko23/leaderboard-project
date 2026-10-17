@@ -5,12 +5,13 @@ import com.github.nhordiienko23.postservice.dto.PostDTO;
 import com.github.nhordiienko23.postservice.dto.PostUpdateRequest;
 import com.github.nhordiienko23.postservice.entity.OutboxEntry;
 import com.github.nhordiienko23.postservice.entity.Post;
-import com.github.nhordiienko23.postservice.exception.PostNotFoundException;
+import com.github.nhordiienko23.postservice.enums.UserRole;
+import com.github.nhordiienko23.postservice.exception.accessdenied.PostAccessDeniedException;
+import com.github.nhordiienko23.postservice.exception.notfound.PostNotFoundException;
 import com.github.nhordiienko23.postservice.mapper.OutboxEntryMapper;
 import com.github.nhordiienko23.postservice.mapper.PostMapper;
 import com.github.nhordiienko23.postservice.repository.OutboxRepository;
 import com.github.nhordiienko23.postservice.repository.PostRepository;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -29,33 +31,45 @@ public class PostServiceImpl implements PostService {
     private final OutboxEntryMapper outboxEntryMapper;
     private final OutboxRepository outboxRepository;
 
-
     @Override
     @Transactional
     public PostDTO createPost(Long userId, PostCreationRequest request) {
         Post post = postMapper.toEntity(userId, request);
         Post savedPost = postRepository.save(post);
-        OutboxEntry outboxEntry = outboxEntryMapper.toCreatedOutboxEntry(savedPost);
+
+        OutboxEntry outboxEntry =
+                outboxEntryMapper.toCreatedOutboxEntry(savedPost);
+
         outboxRepository.save(outboxEntry);
+
         log.info(
-                "New post was created: postId={}, userId={}",
+                "Post created: postId={}, authorId={}",
                 savedPost.getId(),
                 savedPost.getUserId()
         );
+
         return postMapper.toDTO(savedPost);
     }
 
     @Override
     @Transactional
-    public void deletePost(Long userId, Long postId) {
-        Post post = findByUserIdAndId(userId, postId);
+    public void deletePost(Long actorId, UserRole role, Long postId) {
+        Post post = findPostById(postId);
+
+        checkPostAccess(post, actorId, role);
+
+        OutboxEntry outboxEntry =
+                outboxEntryMapper.toDeletedOutboxEntry(post);
+
+        outboxEntry.setActorId(actorId);
 
         postRepository.delete(post);
-        OutboxEntry outboxEntry = outboxEntryMapper.toDeletedOutboxEntry(post);
         outboxRepository.save(outboxEntry);
+
         log.info(
-                "Post was deleted: postId={}, userId={}",
+                "Post deleted: postId={}, actorId={}, authorId={}",
                 post.getId(),
+                actorId,
                 post.getUserId()
         );
     }
@@ -63,37 +77,66 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional(readOnly = true)
     public PostDTO getPostById(Long id) {
-        Post post = postRepository.findById(id)
-                .orElseThrow(() -> new PostNotFoundException("Post with id=" + id + " not found"));
-        return postMapper.toDTO(post);
+        return postMapper.toDTO(findPostById(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<PostDTO> getAllPosts(Pageable pageable) {
-        Page<Post> postPage = postRepository.findAll(pageable);
-        return postPage.map(postMapper::toDTO);
+        return postRepository.findAll(pageable)
+                .map(postMapper::toDTO);
     }
 
     @Override
     @Transactional
-    public PostDTO updatePost(Long userId, PostUpdateRequest request) {
-        Post post = findByUserIdAndId(userId, request.postId());
+    public PostDTO updatePost(
+            Long actorId,
+            UserRole role,
+            Long postId,
+            PostUpdateRequest request
+    ) {
+        Post post = findPostById(postId);
+
+        checkPostAccess(post, actorId, role);
+
         post.setContent(request.content());
+
         log.info(
-                "Post with postId={} was updated by user with userId={}",
-                post.getUserId(),
-                post.getId()
+                "Post updated: postId={}, actorId={}, authorId={}",
+                post.getId(),
+                actorId,
+                post.getUserId()
         );
+
         return postMapper.toDTO(post);
     }
 
-    private Post findByUserIdAndId(Long userId, Long postId) {
-        return postRepository.findByUserIdAndId(userId, postId)
+    private Post findPostById(Long postId) {
+        return postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(
-                        "Post with id=%d was not found for user id=%d"
-                                .formatted(postId, userId)
+                        "Post with id=" + postId + " not found"
                 ));
     }
 
+    private void checkPostAccess(
+            Post post,
+            Long actorId,
+            UserRole role
+    ) {
+        boolean isAdmin = role == UserRole.ADMIN;
+        boolean isOwner = Objects.equals(post.getUserId(), actorId);
+
+        if (!isAdmin && !isOwner) {
+            log.warn(
+                    "Post access denied: postId={}, actorId={}, role={}",
+                    post.getId(),
+                    actorId,
+                    role
+            );
+
+            throw new PostAccessDeniedException(
+                    "You are not allowed to modify this post"
+            );
+        }
+    }
 }

@@ -1,7 +1,7 @@
 package com.github.nhordiienko23.postservice.entity;
 
-import com.github.nhordiienko23.postservice.kafka.ActionType;
-import com.github.nhordiienko23.postservice.kafka.EventType;
+import com.github.nhordiienko23.leaderboardcontract.event.ActionType;
+import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "outbox_entries",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"event_id", "event_type", "action_type"}
+                columnNames = {"content_id", "event_type", "action_type"}
         )
 )
 @Getter
@@ -25,22 +25,28 @@ public class OutboxEntry {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "event_id", nullable = false, updatable = false)
-    private Long eventId;
+    @Column(name = "content_id", nullable = false, updatable = false)
+    private Long contentId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false, updatable = false)
     private EventType eventType;
 
-    @Column(nullable = false)
-    private String topic;
-
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "action_type", nullable = false, updatable = false)
     private ActionType actionType;
+
+    @Column(nullable = false)
+    private String topic;
+
+    @Column(name = "actor_id", nullable = false)
+    private Long actorId;
+
+    @Column(name = "target_author_id")
+    private Long targetAuthorId;
+
+    @Column(name = "content_author_id")
+    private Long contentAuthorId;
 
     @Column(nullable = false)
     private boolean published;

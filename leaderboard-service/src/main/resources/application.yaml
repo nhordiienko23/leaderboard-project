@@ -10,7 +10,7 @@ spring:
       host: localhost
       port: 6379
       timeout: 3s
-      
+
   datasource:
     url: jdbc:postgresql://localhost:5434/leaderboard_db
     username: leaderboard_user
@@ -20,6 +20,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+    open-in-view: false
 
   kafka:
     bootstrap-servers: localhost:9092
@@ -27,12 +28,10 @@ spring:
     consumer:
       group-id: leaderboard-service
       auto-offset-reset: earliest
-
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
 
       properties:
-        spring.json.value.default.type: com.github.nhordiienko23.leaderboardservice.kafka.ContentEvent
-        spring.json.trusted.packages: com.github.nhordiienko23.leaderboardservice.kafka
+        spring.json.value.default.type: com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent
+        spring.json.trusted.packages: com.github.nhordiienko23.leaderboardcontract.event
         spring.json.use.type.headers: false
-
