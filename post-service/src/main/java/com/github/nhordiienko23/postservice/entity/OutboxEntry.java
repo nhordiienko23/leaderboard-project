@@ -63,6 +63,9 @@ public class OutboxEntry {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
+    @Column(name = "participants_json", columnDefinition = "TEXT")
+    private String participantsJson;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

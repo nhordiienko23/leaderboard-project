@@ -35,3 +35,46 @@ spring:
         spring.json.value.default.type: com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent
         spring.json.trusted.packages: com.github.nhordiienko23.leaderboardcontract.event
         spring.json.use.type.headers: false
+
+leaderboard:
+  scoring:
+    rules:
+      - event-type: POST
+        action-type: CREATED
+        participant-role: POST_AUTHOR
+        points: 10
+
+      - event-type: POST
+        action-type: DELETED
+        participant-role: POST_AUTHOR
+        points: -10
+
+      - event-type: COMMENT
+        action-type: CREATED
+        participant-role: COMMENT_AUTHOR
+        points: 5
+
+      - event-type: COMMENT
+        action-type: DELETED
+        participant-role: COMMENT_AUTHOR
+        points: -5
+
+      - event-type: COMMENT
+        action-type: CREATED
+        participant-role: CONTENT_AUTHOR
+        points: 2
+
+      - event-type: COMMENT
+        action-type: DELETED
+        participant-role: CONTENT_AUTHOR
+        points: -2
+
+      - event-type: LIKE
+        action-type: CREATED
+        participant-role: CONTENT_AUTHOR
+        points: 1
+
+      - event-type: LIKE
+        action-type: DELETED
+        participant-role: CONTENT_AUTHOR
+        points: -1
