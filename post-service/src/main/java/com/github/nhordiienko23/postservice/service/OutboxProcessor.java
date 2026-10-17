@@ -1,5 +1,8 @@
 package com.github.nhordiienko23.postservice.service;
 
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
+import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent;
 import com.github.nhordiienko23.leaderboardcontract.event.ParticipantRole;
 import com.github.nhordiienko23.leaderboardcontract.event.ScoreParticipant;
@@ -22,6 +25,7 @@ public class OutboxProcessor {
 
     private final OutboxRepository outboxRepository;
     private final PostEventProducer postEventProducer;
+    private final JsonMapper jsonMapper;
 
     @Scheduled(fixedDelay = 1000)
     public void processPendingEntries() {
@@ -39,20 +43,20 @@ public class OutboxProcessor {
                 entry.setLastError(null);
 
                 log.info(
-                        "Outbox event published: eventId={}, postId={}, "
-                                + "actionType={}",
+                        "Outbox event published: eventId={}, entityId={}, "
+                                + "eventType={}, actionType={}",
                         event.eventId(),
                         event.entityId(),
+                        event.eventType(),
                         event.actionType()
                 );
-
             } catch (Exception e) {
                 entry.setAttempts(entry.getAttempts() + 1);
                 entry.setLastError(e.getMessage());
 
                 log.error(
-                        "Outbox event processing failed: eventId={}, "
-                                + "postId={}, attempts={}",
+                        "Outbox processing failed: eventId={}, "
+                                + "entityId={}, attempts={}",
                         entry.getId(),
                         entry.getContentId(),
                         entry.getAttempts(),
@@ -65,22 +69,76 @@ public class OutboxProcessor {
     }
 
     private LeaderboardEvent toLeaderboardEvent(OutboxEntry entry) {
-        Long authorId = Objects.requireNonNull(
-                entry.getContentAuthorId(),
-                "Post author ID must not be null"
+        Objects.requireNonNull(entry.getId(), "Outbox ID must not be null");
+        Objects.requireNonNull(
+                entry.getEventType(),
+                "Event type must not be null"
         );
+        Objects.requireNonNull(
+                entry.getActionType(),
+                "Action type must not be null"
+        );
+        Objects.requireNonNull(
+                entry.getContentId(),
+                "Entity ID must not be null"
+        );
+
+        List<ScoreParticipant> participants = resolveParticipants(entry);
+
+        if (participants.isEmpty()) {
+            throw new IllegalStateException(
+                    "Outbox event must contain participants: eventId="
+                            + entry.getId()
+            );
+        }
 
         return new LeaderboardEvent(
                 entry.getId(),
                 entry.getEventType(),
                 entry.getActionType(),
                 entry.getContentId(),
-                List.of(
-                        new ScoreParticipant(
-                                authorId,
-                                ParticipantRole.POST_AUTHOR
-                        )
-                )
+                participants
+        );
+    }
+
+    private List<ScoreParticipant> resolveParticipants(OutboxEntry entry) {
+        String participantsJson = entry.getParticipantsJson();
+
+        if (participantsJson != null && !participantsJson.isBlank()) {
+            try {
+                return jsonMapper.readValue(
+                        participantsJson,
+                        new TypeReference<>() {}
+                );
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        "Cannot deserialize outbox participants: eventId="
+                                + entry.getId(),
+                        e
+                );
+            }
+        }
+
+        // Backward compatibility for existing post events.
+        if (entry.getEventType() == EventType.POST) {
+            Long postAuthorId = Objects.requireNonNull(
+                    entry.getContentAuthorId(),
+                    "Post author ID must not be null"
+            );
+
+            return List.of(
+                    new ScoreParticipant(
+                            postAuthorId,
+                            ParticipantRole.POST_AUTHOR
+                    )
+            );
+        }
+
+        throw new IllegalStateException(
+                "participantsJson is required for eventType="
+                        + entry.getEventType()
+                        + ", eventId="
+                        + entry.getId()
         );
     }
 }

@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -16,6 +18,8 @@ public class LeaderboardEventListener {
 
     @KafkaListener(topics = KafkaTopics.LEADERBOARD_EVENTS)
     public void handleLeaderboardEvent(LeaderboardEvent event) {
+        Objects.requireNonNull(event, "Leaderboard event must not be null");
+
         log.info(
                 "Received leaderboard event: eventId={}, entityId={}, "
                         + "eventType={}, actionType={}",

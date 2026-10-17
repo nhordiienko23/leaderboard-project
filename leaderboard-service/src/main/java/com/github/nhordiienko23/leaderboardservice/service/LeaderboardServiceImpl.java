@@ -1,9 +1,8 @@
 package com.github.nhordiienko23.leaderboardservice.service;
 
-import com.github.nhordiienko23.leaderboardcontract.event.ActionType;
-import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent;
 import com.github.nhordiienko23.leaderboardcontract.event.ScoreParticipant;
+import com.github.nhordiienko23.leaderboardservice.config.LeaderboardScoringProperties;
 import com.github.nhordiienko23.leaderboardservice.dto.LeaderboardEntryDTO;
 import com.github.nhordiienko23.leaderboardservice.entity.LeaderboardEntry;
 import com.github.nhordiienko23.leaderboardservice.entity.ProcessedEvent;
@@ -11,14 +10,15 @@ import com.github.nhordiienko23.leaderboardservice.entity.RedisSyncOutbox;
 import com.github.nhordiienko23.leaderboardservice.repository.LeaderboardEntryRepository;
 import com.github.nhordiienko23.leaderboardservice.repository.ProcessedEventRepository;
 import com.github.nhordiienko23.leaderboardservice.repository.RedisSyncOutboxRepository;
-import com.github.nhordiienko23.leaderboardservice.score.ScorePoints;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -32,6 +32,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     private final ProcessedEventRepository processedEventRepository;
     private final StringRedisTemplate redisTemplate;
     private final RedisSyncOutboxRepository redisSyncOutboxRepository;
+    private final LeaderboardScoringProperties scoringProperties;
 
     @Override
     @Transactional
@@ -56,24 +57,42 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             return;
         }
 
-        if (event.participants() == null || event.participants().isEmpty()) {
+        if (event.participants().isEmpty()) {
             throw new IllegalArgumentException(
-                    "Leaderboard event must contain at least one participant: eventId="
+                    "Leaderboard event must contain participants: eventId="
                             + event.eventId()
             );
         }
 
-        long pointsDelta = getPointsDelta(
-                event.eventType(),
-                event.actionType()
-        );
+        Map<Long, Long> pointsByUser = new LinkedHashMap<>();
 
-        List<Long> userIds = event.participants().stream()
-                .map(participant -> requireUserId(participant, event))
-                .distinct()
-                .toList();
+        for (ScoreParticipant participant : event.participants()) {
+            if (participant == null
+                    || participant.userId() == null
+                    || participant.role() == null) {
+                throw new IllegalArgumentException(
+                        "Participant userId and role are required: eventId="
+                                + event.eventId()
+                );
+            }
 
-        for (Long userId : userIds) {
+            long points = scoringProperties.pointsFor(
+                    event.eventType(),
+                    event.actionType(),
+                    participant.role()
+            );
+
+            pointsByUser.merge(
+                    participant.userId(),
+                    points,
+                    (first, second) -> Math.addExact(first, second)
+            );
+        }
+
+        for (var scoredUser : pointsByUser.entrySet()) {
+            Long userId = scoredUser.getKey();
+            long pointsDelta = scoredUser.getValue();
+
             LeaderboardEntry entry = leaderboardEntryRepository
                     .findByUserId(userId)
                     .orElseGet(() -> LeaderboardEntry.builder()
@@ -83,7 +102,10 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                             .build());
 
             long previousPoints = entry.getPoints();
-            long newPoints = Math.max(0L, previousPoints + pointsDelta);
+            long newPoints = Math.max(
+                    0L,
+                    Math.addExact(previousPoints, pointsDelta)
+            );
 
             entry.setPoints(newPoints);
             leaderboardEntryRepository.save(entry);
@@ -154,43 +176,5 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                             .build();
                 })
                 .toList();
-    }
-
-    private long getPointsDelta(
-            EventType eventType,
-            ActionType actionType
-    ) {
-        long points = switch (eventType) {
-            case POST -> ScorePoints.POST;
-            case COMMENT -> ScorePoints.COMMENT;
-            case LIKE -> ScorePoints.LIKE;
-            case ORDER -> throw new IllegalArgumentException(
-                    "Scoring rule is not configured for event type: ORDER"
-            );
-        };
-
-        return switch (actionType) {
-            case CREATED -> points;
-            case DELETED -> -points;
-            case PLACED, COMPLETED, REFUNDED ->
-                    throw new IllegalArgumentException(
-                            "Scoring rule is not configured for eventType="
-                                    + eventType + ", actionType=" + actionType
-                    );
-        };
-    }
-
-    private Long requireUserId(
-            ScoreParticipant participant,
-            LeaderboardEvent event
-    ) {
-        if (participant == null || participant.userId() == null) {
-            throw new IllegalArgumentException(
-                    "Participant userId must not be null: eventId="
-                            + event.eventId()
-            );
-        }
-
-        return participant.userId();
     }
 }
