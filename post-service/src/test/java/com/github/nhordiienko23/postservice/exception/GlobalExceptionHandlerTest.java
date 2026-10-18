@@ -3,12 +3,10 @@ package com.github.nhordiienko23.postservice.exception;
 import com.github.nhordiienko23.postservice.exception.accessdenied.AccessDeniedException;
 import com.github.nhordiienko23.postservice.exception.accessdenied.PostAccessDeniedException;
 import com.github.nhordiienko23.postservice.exception.notfound.PostNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
@@ -20,13 +18,16 @@ import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -58,16 +59,19 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleAccessDenied(exception, request);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(403, response.getBody().status());
-        assertEquals("Forbidden", response.getBody().error());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(403, body.status());
+        assertEquals("Forbidden", body.error());
         assertEquals(
                 "You are not allowed to modify this post",
-                response.getBody().message()
+                body.message()
         );
-        assertEquals("/api/posts/42", response.getBody().path());
-        assertNotNull(response.getBody().timestamp());
-        assertTrue(response.getBody().fieldErrors().isEmpty());
+        assertEquals("/api/posts/42", body.path());
+        assertNotNull(body.timestamp());
+        assertTrue(body.fieldErrors().isEmpty());
     }
 
     // -------------------------------------------------------------------------
@@ -85,14 +89,15 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleNotFound(exception, request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(404, response.getBody().status());
-        assertEquals("Not Found", response.getBody().error());
-        assertEquals(
-                "Post with id=42 not found",
-                response.getBody().message()
-        );
-        assertEquals("/api/posts/42", response.getBody().path());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(404, body.status());
+        assertEquals("Not Found", body.error());
+        assertEquals("Post with id=42 not found", body.message());
+        assertEquals("/api/posts/42", body.path());
+        assertTrue(body.fieldErrors().isEmpty());
     }
 
     @Test
@@ -103,13 +108,17 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleNoResourceFound(request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(404, response.getBody().status());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(404, body.status());
         assertEquals(
                 "The requested resource was not found.",
-                response.getBody().message()
+                body.message()
         );
-        assertEquals("/api/unknown", response.getBody().path());
+        assertEquals("/api/unknown", body.path());
+        assertTrue(body.fieldErrors().isEmpty());
     }
 
     // -------------------------------------------------------------------------
@@ -117,17 +126,17 @@ class GlobalExceptionHandlerTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void handleValidation_shouldReturn400WithFieldErrors()
+    void handleValidation_shouldReturn400AndMergeFieldErrors()
             throws Exception {
 
         HttpServletRequest request =
                 createRequest("POST", "/api/posts");
 
-        TestRequest requestBody = new TestRequest();
-        requestBody.setContent("");
+        TestRequest target = new TestRequest();
+        target.setContent("");
 
         BeanPropertyBindingResult bindingResult =
-                new BeanPropertyBindingResult(requestBody, "request");
+                new BeanPropertyBindingResult(target, "request");
 
         bindingResult.rejectValue(
                 "content",
@@ -138,7 +147,7 @@ class GlobalExceptionHandlerTest {
         bindingResult.rejectValue(
                 "content",
                 "Size",
-                "too short"
+                "must not exceed 255 characters"
         );
 
         bindingResult.reject(
@@ -160,19 +169,24 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleValidation(exception, request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(400, response.getBody().status());
-        assertEquals("Request validation failed.", response.getBody().message());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(400, body.status());
+        assertEquals("Request validation failed.", body.message());
 
         assertEquals(
-                "must not be blank; too short",
-                response.getBody().fieldErrors().get("content")
+                "must not be blank; must not exceed 255 characters",
+                body.fieldErrors().get("content")
         );
 
         assertEquals(
                 "Request contains invalid fields",
-                response.getBody().fieldErrors().get("_global")
+                body.fieldErrors().get("_global")
         );
+
+        assertEquals("/api/posts", body.path());
     }
 
     @Test
@@ -185,16 +199,21 @@ class GlobalExceptionHandlerTest {
 
         when(exception.getParameterValidationResults())
                 .thenReturn(List.of());
+
         when(exception.getCrossParameterValidationResults())
                 .thenReturn(List.of());
 
         var response = handler.handleMethodValidation(exception, request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(400, response.getBody().status());
-        assertEquals("Request validation failed.", response.getBody().message());
-        assertTrue(response.getBody().fieldErrors().isEmpty());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(400, body.status());
+        assertEquals("Request validation failed.", body.message());
+        assertTrue(body.fieldErrors().isEmpty());
+        assertEquals("/api/posts", body.path());
     }
 
     @Test
@@ -219,15 +238,20 @@ class GlobalExceptionHandlerTest {
                 handler.handleConstraintViolation(exception, request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(400, body.status());
+        assertEquals("Request validation failed.", body.message());
         assertEquals(
                 "must not be null",
-                response.getBody().fieldErrors().get("createPost.userId")
+                body.fieldErrors().get("createPost.userId")
         );
     }
 
     // -------------------------------------------------------------------------
-    // INVALID REQUEST
+    // REQUEST BODY AND PARAMETERS
     // -------------------------------------------------------------------------
 
     @Test
@@ -238,12 +262,15 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleInvalidRequestBody(request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
         assertEquals(
                 "Request body is missing or malformed.",
-                response.getBody().message()
+                body.message()
         );
-        assertEquals("/api/posts", response.getBody().path());
+        assertEquals("/api/posts", body.path());
     }
 
     @Test
@@ -259,11 +286,15 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleTypeMismatch(exception, request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
         assertEquals(
                 "Invalid value for parameter 'postId'.",
-                response.getBody().message()
+                body.message()
         );
+        assertEquals("/api/posts/abc", body.path());
     }
 
     @Test
@@ -280,11 +311,44 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleMissingParameter(exception, request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertNotNull(response.getBody());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
         assertEquals(
                 "Required parameter 'page' is missing.",
-                response.getBody().message()
+                body.message()
         );
+        assertEquals("/api/posts", body.path());
+    }
+
+    @Test
+    void handleMissingRequestHeader_shouldReturn400() {
+        HttpServletRequest request =
+                createRequest("POST", "/api/posts");
+
+        MissingRequestHeaderException exception =
+                mock(MissingRequestHeaderException.class);
+
+        when(exception.getHeaderName()).thenReturn("X-User-Id");
+
+        var response =
+                handler.handleMissingRequestHeader(exception, request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+
+        Map<String, Object> body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(400, body.get("status"));
+        assertEquals("Bad Request", body.get("error"));
+        assertEquals(
+                "Required request header 'X-User-Id' is missing",
+                body.get("message")
+        );
+        assertEquals("/api/posts", body.get("path"));
+        assertEquals(Map.of(), body.get("fieldErrors"));
+        assertInstanceOf(Instant.class, body.get("timestamp"));
     }
 
     // -------------------------------------------------------------------------
@@ -302,11 +366,15 @@ class GlobalExceptionHandlerTest {
                 HttpStatus.METHOD_NOT_ALLOWED,
                 response.getStatusCode()
         );
-        assertNotNull(response.getBody());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
         assertEquals(
                 "HTTP method is not supported for this endpoint.",
-                response.getBody().message()
+                body.message()
         );
+        assertEquals("/api/posts", body.path());
     }
 
     @Test
@@ -320,10 +388,13 @@ class GlobalExceptionHandlerTest {
                 HttpStatus.UNSUPPORTED_MEDIA_TYPE,
                 response.getStatusCode()
         );
-        assertNotNull(response.getBody());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
         assertEquals(
                 "The request content type is not supported.",
-                response.getBody().message()
+                body.message()
         );
     }
 
@@ -338,15 +409,18 @@ class GlobalExceptionHandlerTest {
                 HttpStatus.NOT_ACCEPTABLE,
                 response.getStatusCode()
         );
-        assertNotNull(response.getBody());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
         assertEquals(
                 "The requested response format is not supported.",
-                response.getBody().message()
+                body.message()
         );
     }
 
     // -------------------------------------------------------------------------
-    // CONFLICT AND RESPONSE STATUS
+    // OPTIMISTIC LOCKING AND RESPONSE STATUS
     // -------------------------------------------------------------------------
 
     @Test
@@ -363,15 +437,19 @@ class GlobalExceptionHandlerTest {
                 handler.handleOptimisticLocking(exception, request);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertNotNull(response.getBody());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
         assertEquals(
                 "The resource was modified by another request. Please retry.",
-                response.getBody().message()
+                body.message()
         );
+        assertEquals("/api/posts/42", body.path());
     }
 
     @Test
-    void handleResponseStatus_shouldUseExceptionStatusAndReason() {
+    void handleResponseStatus_shouldPreserveStatusAndReason() {
         HttpServletRequest request =
                 createRequest("POST", "/api/posts");
 
@@ -384,11 +462,14 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleResponseStatus(exception, request);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(409, response.getBody().status());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(409, body.status());
         assertEquals(
                 "You have already liked this post",
-                response.getBody().message()
+                body.message()
         );
     }
 
@@ -403,8 +484,11 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleResponseStatus(exception, request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals("Not Found", response.getBody().message());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals("Not Found", body.message());
     }
 
     // -------------------------------------------------------------------------
@@ -427,16 +511,18 @@ class GlobalExceptionHandlerTest {
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 response.getStatusCode()
         );
-        assertNotNull(response.getBody());
-        assertEquals(500, response.getBody().status());
+
+        ApiErrorResponse body = response.getBody();
+        assertNotNull(body);
+
+        assertEquals(500, body.status());
         assertEquals(
                 "An unexpected error occurred. Please try again later.",
-                response.getBody().message()
+                body.message()
         );
-        assertFalse(
-                response.getBody().message().contains("Sensitive")
-        );
-        assertEquals("/api/posts", response.getBody().path());
+        assertFalse(body.message().contains("Sensitive"));
+        assertEquals("/api/posts", body.path());
+        assertNotNull(body.timestamp());
     }
 
     // -------------------------------------------------------------------------
@@ -454,12 +540,11 @@ class GlobalExceptionHandlerTest {
     }
 
     @SuppressWarnings("unused")
-    private void validationEndpoint(@Valid TestRequest request) {
+    private void validationEndpoint(TestRequest request) {
     }
 
     private static class TestRequest {
 
-        @NotBlank
         private String content;
 
         public String getContent() {
