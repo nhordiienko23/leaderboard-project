@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "posts")
@@ -13,6 +15,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class Post {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -20,7 +23,7 @@ public class Post {
     @Column(nullable = false, length = 255)
     private String content;
 
-    @Column(name = "user_id",nullable = false, updatable = false)
+    @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
 
     @Column(nullable = false)
@@ -29,16 +32,22 @@ public class Post {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @OneToMany(
+            mappedBy = "post",
+            cascade = CascadeType.REMOVE
+    )
+    @Builder.Default
+    private List<Comment> comments = new ArrayList<>();
+
     @PrePersist
-    protected void onCreate(){
+    protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
 
     @PreUpdate
-    protected void onUpdate(){
+    protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
-
 }

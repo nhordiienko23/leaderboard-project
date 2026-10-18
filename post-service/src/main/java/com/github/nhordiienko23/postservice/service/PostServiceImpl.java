@@ -1,8 +1,11 @@
 package com.github.nhordiienko23.postservice.service;
 
+import com.github.nhordiienko23.leaderboardcontract.event.ActionType;
+import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
 import com.github.nhordiienko23.postservice.dto.PostDTO;
 import com.github.nhordiienko23.postservice.dto.PostUpdateRequest;
+import com.github.nhordiienko23.postservice.entity.Comment;
 import com.github.nhordiienko23.postservice.entity.OutboxEntry;
 import com.github.nhordiienko23.postservice.entity.Post;
 import com.github.nhordiienko23.postservice.enums.UserRole;
@@ -10,6 +13,7 @@ import com.github.nhordiienko23.postservice.exception.accessdenied.PostAccessDen
 import com.github.nhordiienko23.postservice.exception.notfound.PostNotFoundException;
 import com.github.nhordiienko23.postservice.mapper.OutboxEntryMapper;
 import com.github.nhordiienko23.postservice.mapper.PostMapper;
+import com.github.nhordiienko23.postservice.repository.CommentRepository;
 import com.github.nhordiienko23.postservice.repository.OutboxRepository;
 import com.github.nhordiienko23.postservice.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -28,8 +33,10 @@ public class PostServiceImpl implements PostService {
 
     private final PostMapper postMapper;
     private final PostRepository postRepository;
+    private final CommentRepository commentRepository;
     private final OutboxEntryMapper outboxEntryMapper;
     private final OutboxRepository outboxRepository;
+    private final LeaderboardParticipantsJsonFactory participantsJsonFactory;
 
     @Override
     @Transactional
@@ -57,6 +64,8 @@ public class PostServiceImpl implements PostService {
         Post post = findPostById(postId);
 
         checkPostAccess(post, actorId, role);
+
+        enqueueCommentDeletionEvents(post, actorId);
 
         OutboxEntry outboxEntry =
                 outboxEntryMapper.toDeletedOutboxEntry(post);
@@ -109,6 +118,45 @@ public class PostServiceImpl implements PostService {
         );
 
         return postMapper.toDTO(post);
+    }
+
+    private void enqueueCommentDeletionEvents(
+            Post post,
+            Long actorId
+    ) {
+        List<Comment> comments =
+                commentRepository.findAllByPost_Id(post.getId());
+
+        for (Comment comment : comments) {
+            if (Objects.equals(comment.getUserId(), post.getUserId())) {
+                continue;
+            }
+
+            boolean hasCreationEvent =
+                    outboxRepository.existsByContentIdAndEventTypeAndActionType(
+                            comment.getId(),
+                            EventType.COMMENT,
+                            ActionType.CREATED
+                    );
+
+            if (!hasCreationEvent) {
+                continue;
+            }
+
+            String participantsJson = participantsJsonFactory.forComment(
+                    comment.getUserId(),
+                    post.getUserId()
+            );
+
+            OutboxEntry deletionEvent =
+                    outboxEntryMapper.toDeletedCommentOutboxEntry(
+                            comment,
+                            actorId,
+                            participantsJson
+                    );
+
+            outboxRepository.save(deletionEvent);
+        }
     }
 
     private Post findPostById(Long postId) {
