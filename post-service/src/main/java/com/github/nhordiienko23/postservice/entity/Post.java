@@ -34,10 +34,19 @@ public class Post {
 
     @OneToMany(
             mappedBy = "post",
-            cascade = CascadeType.REMOVE
+            cascade = CascadeType.REMOVE,
+            orphanRemoval = true
     )
     @Builder.Default
     private List<Comment> comments = new ArrayList<>();
+
+    @OneToMany(
+            mappedBy = "post",
+            cascade = CascadeType.REMOVE,
+            orphanRemoval = true
+    )
+    @Builder.Default
+    private List<Like> likes = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {

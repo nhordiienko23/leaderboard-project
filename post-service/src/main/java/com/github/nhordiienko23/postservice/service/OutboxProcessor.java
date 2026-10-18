@@ -1,7 +1,6 @@
 package com.github.nhordiienko23.postservice.service;
 
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
+import com.github.nhordiienko23.leaderboardcontract.event.EventReason;
 import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent;
 import com.github.nhordiienko23.leaderboardcontract.event.ParticipantRole;
@@ -13,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,8 +30,7 @@ public class OutboxProcessor {
 
     @Scheduled(fixedDelay = 1000)
     public void processPendingEntries() {
-        var entries = outboxRepository
-                .findTop100ByPublishedFalseOrderByIdAsc();
+        var entries = outboxRepository.findTop100ByPublishedFalseOrderByIdAsc();
 
         for (OutboxEntry entry : entries) {
             try {
@@ -43,20 +43,19 @@ public class OutboxProcessor {
                 entry.setLastError(null);
 
                 log.info(
-                        "Outbox event published: eventId={}, entityId={}, "
-                                + "eventType={}, actionType={}",
+                        "Outbox event published: eventId={}, entityId={}, eventType={}, actionType={}, reason={}",
                         event.eventId(),
                         event.entityId(),
                         event.eventType(),
-                        event.actionType()
+                        event.actionType(),
+                        event.reason()
                 );
             } catch (Exception e) {
                 entry.setAttempts(entry.getAttempts() + 1);
                 entry.setLastError(e.getMessage());
 
                 log.error(
-                        "Outbox processing failed: eventId={}, "
-                                + "entityId={}, attempts={}",
+                        "Outbox processing failed: eventId={}, entityId={}, attempts={}",
                         entry.getId(),
                         entry.getContentId(),
                         entry.getAttempts(),
@@ -70,25 +69,15 @@ public class OutboxProcessor {
 
     private LeaderboardEvent toLeaderboardEvent(OutboxEntry entry) {
         Objects.requireNonNull(entry.getId(), "Outbox ID must not be null");
-        Objects.requireNonNull(
-                entry.getEventType(),
-                "Event type must not be null"
-        );
-        Objects.requireNonNull(
-                entry.getActionType(),
-                "Action type must not be null"
-        );
-        Objects.requireNonNull(
-                entry.getContentId(),
-                "Entity ID must not be null"
-        );
+        Objects.requireNonNull(entry.getEventType(), "Event type must not be null");
+        Objects.requireNonNull(entry.getActionType(), "Action type must not be null");
+        Objects.requireNonNull(entry.getContentId(), "Entity ID must not be null");
 
         List<ScoreParticipant> participants = resolveParticipants(entry);
 
         if (participants.isEmpty()) {
             throw new IllegalStateException(
-                    "Outbox event must contain participants: eventId="
-                            + entry.getId()
+                    "Outbox event must contain participants: eventId=" + entry.getId()
             );
         }
 
@@ -96,6 +85,9 @@ public class OutboxProcessor {
                 entry.getId(),
                 entry.getEventType(),
                 entry.getActionType(),
+                entry.getReason() == null
+                        ? EventReason.USER_ACTION
+                        : entry.getReason(),
                 entry.getContentId(),
                 participants
         );
@@ -108,7 +100,7 @@ public class OutboxProcessor {
             try {
                 return jsonMapper.readValue(
                         participantsJson,
-                        new TypeReference<>() {}
+                        new TypeReference<List<ScoreParticipant>>() {}
                 );
             } catch (Exception e) {
                 throw new IllegalStateException(
@@ -119,7 +111,7 @@ public class OutboxProcessor {
             }
         }
 
-        // Backward compatibility for existing post events.
+        // Compatibility with older post events that have no participantsJson.
         if (entry.getEventType() == EventType.POST) {
             Long postAuthorId = Objects.requireNonNull(
                     entry.getContentAuthorId(),
@@ -137,8 +129,7 @@ public class OutboxProcessor {
         throw new IllegalStateException(
                 "participantsJson is required for eventType="
                         + entry.getEventType()
-                        + ", eventId="
-                        + entry.getId()
+                        + ", eventId=" + entry.getId()
         );
     }
 }

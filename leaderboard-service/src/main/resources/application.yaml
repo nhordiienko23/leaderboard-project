@@ -30,7 +30,6 @@ spring:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-
       properties:
         spring.json.value.default.type: com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent
         spring.json.trusted.packages: com.github.nhordiienko23.leaderboardcontract.event
@@ -52,12 +51,12 @@ leaderboard:
       - event-type: COMMENT
         action-type: CREATED
         participant-role: COMMENT_AUTHOR
-        points: 5
+        points: 2
 
       - event-type: COMMENT
         action-type: DELETED
         participant-role: COMMENT_AUTHOR
-        points: -5
+        points: -2
 
       - event-type: COMMENT
         action-type: CREATED
@@ -77,4 +76,14 @@ leaderboard:
       - event-type: LIKE
         action-type: DELETED
         participant-role: CONTENT_AUTHOR
+        points: -1
+
+      - event-type: LIKE
+        action-type: CREATED
+        participant-role: LIKER
+        points: 1
+
+      - event-type: LIKE
+        action-type: DELETED
+        participant-role: LIKER
         points: -1

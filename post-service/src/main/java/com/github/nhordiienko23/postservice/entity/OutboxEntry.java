@@ -1,6 +1,7 @@
 package com.github.nhordiienko23.postservice.entity;
 
 import com.github.nhordiienko23.leaderboardcontract.event.ActionType;
+import com.github.nhordiienko23.leaderboardcontract.event.EventReason;
 import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -36,6 +37,11 @@ public class OutboxEntry {
     @Column(name = "action_type", nullable = false, updatable = false)
     private ActionType actionType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason", length = 32)
+    @Builder.Default
+    private EventReason reason = EventReason.USER_ACTION;
+
     @Column(nullable = false)
     private String topic;
 
@@ -69,5 +75,9 @@ public class OutboxEntry {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+
+        if (reason == null) {
+            reason = EventReason.USER_ACTION;
+        }
     }
 }

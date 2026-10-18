@@ -1,6 +1,7 @@
 package com.github.nhordiienko23.postservice.service;
 
 import com.github.nhordiienko23.leaderboardcontract.event.ActionType;
+import com.github.nhordiienko23.leaderboardcontract.event.EventReason;
 import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
 import com.github.nhordiienko23.postservice.dto.PostDTO;
@@ -36,6 +37,7 @@ public class PostServiceImpl implements PostService {
     private final CommentRepository commentRepository;
     private final OutboxEntryMapper outboxEntryMapper;
     private final OutboxRepository outboxRepository;
+    private final LikeService likeService;
     private final LeaderboardParticipantsJsonFactory participantsJsonFactory;
 
     @Override
@@ -44,10 +46,9 @@ public class PostServiceImpl implements PostService {
         Post post = postMapper.toEntity(userId, request);
         Post savedPost = postRepository.save(post);
 
-        OutboxEntry outboxEntry =
-                outboxEntryMapper.toCreatedOutboxEntry(savedPost);
-
-        outboxRepository.save(outboxEntry);
+        outboxRepository.save(
+                outboxEntryMapper.toCreatedOutboxEntry(savedPost)
+        );
 
         log.info(
                 "Post created: postId={}, authorId={}",
@@ -62,24 +63,65 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void deletePost(Long actorId, UserRole role, Long postId) {
         Post post = findPostById(postId);
-
         checkPostAccess(post, actorId, role);
 
-        enqueueCommentDeletionEvents(post, actorId);
+        EventReason postReason = role == UserRole.ADMIN
+                ? EventReason.MODERATION
+                : EventReason.USER_ACTION;
 
-        OutboxEntry outboxEntry =
-                outboxEntryMapper.toDeletedOutboxEntry(post);
+        List<Comment> comments =
+                commentRepository.findAllByPost_Id(post.getId());
 
-        outboxEntry.setActorId(actorId);
+        if (postReason == EventReason.MODERATION) {
+            // Moderation: reverse points earned from the post and its likes.
+            likeService.removeLikesForPost(
+                    post,
+                    actorId,
+                    EventReason.PARENT_DELETED
+            );
 
+            // Also reverse points earned from comments and their likes.
+            for (Comment comment : comments) {
+                likeService.removeLikesForComment(
+                        comment,
+                        actorId,
+                        EventReason.PARENT_DELETED
+                );
+
+                enqueueCommentDeletionIfScored(
+                        comment,
+                        actorId,
+                        EventReason.PARENT_DELETED
+                );
+            }
+        } else {
+            // Voluntary deletion: remove dependent likes without reversing
+            // the scores earned by other users through comments and likes.
+            likeService.deleteLikesForPostWithoutScoreReversal(post);
+
+            for (Comment comment : comments) {
+                likeService.deleteLikesForCommentWithoutScoreReversal(
+                        comment
+                );
+            }
+        }
+
+        OutboxEntry postDeletionEvent =
+                outboxEntryMapper.toDeletedOutboxEntry(
+                        post,
+                        actorId,
+                        postReason
+                );
+
+        outboxRepository.save(postDeletionEvent);
         postRepository.delete(post);
-        outboxRepository.save(outboxEntry);
 
         log.info(
-                "Post deleted: postId={}, actorId={}, authorId={}",
+                "Post deleted: postId={}, actorId={}, authorId={}, reason={}",
                 post.getId(),
                 actorId,
-                post.getUserId()
+                post.getUserId(),
+                postReason
         );
     }
 
@@ -105,7 +147,6 @@ public class PostServiceImpl implements PostService {
             PostUpdateRequest request
     ) {
         Post post = findPostById(postId);
-
         checkPostAccess(post, actorId, role);
 
         post.setContent(request.content());
@@ -120,43 +161,47 @@ public class PostServiceImpl implements PostService {
         return postMapper.toDTO(post);
     }
 
-    private void enqueueCommentDeletionEvents(
-            Post post,
-            Long actorId
+    private void enqueueCommentDeletionIfScored(
+            Comment comment,
+            Long actorId,
+            EventReason reason
     ) {
-        List<Comment> comments =
-                commentRepository.findAllByPost_Id(post.getId());
-
-        for (Comment comment : comments) {
-            if (Objects.equals(comment.getUserId(), post.getUserId())) {
-                continue;
-            }
-
-            boolean hasCreationEvent =
-                    outboxRepository.existsByContentIdAndEventTypeAndActionType(
-                            comment.getId(),
-                            EventType.COMMENT,
-                            ActionType.CREATED
-                    );
-
-            if (!hasCreationEvent) {
-                continue;
-            }
-
-            String participantsJson = participantsJsonFactory.forComment(
-                    comment.getUserId(),
-                    post.getUserId()
-            );
-
-            OutboxEntry deletionEvent =
-                    outboxEntryMapper.toDeletedCommentOutboxEntry(
-                            comment,
-                            actorId,
-                            participantsJson
-                    );
-
-            outboxRepository.save(deletionEvent);
+        if (Objects.equals(
+                comment.getUserId(),
+                comment.getPost().getUserId()
+        )) {
+            return;
         }
+
+        boolean hasCreationEvent =
+                outboxRepository.existsByContentIdAndEventTypeAndActionType(
+                        comment.getId(),
+                        EventType.COMMENT,
+                        ActionType.CREATED
+                );
+
+        if (!hasCreationEvent) {
+            log.debug(
+                    "No scored COMMENT/CREATED event; skipping reversal: commentId={}",
+                    comment.getId()
+            );
+            return;
+        }
+
+        String participantsJson = participantsJsonFactory.forComment(
+                comment.getUserId(),
+                comment.getPost().getUserId()
+        );
+
+        OutboxEntry deletionEvent =
+                outboxEntryMapper.toDeletedCommentOutboxEntry(
+                        comment,
+                        actorId,
+                        participantsJson,
+                        reason
+                );
+
+        outboxRepository.save(deletionEvent);
     }
 
     private Post findPostById(Long postId) {
