@@ -1,6 +1,7 @@
 package com.github.nhordiienko23.postservice.service;
 
 import com.github.nhordiienko23.leaderboardcontract.event.ActionType;
+import com.github.nhordiienko23.leaderboardcontract.event.EventReason;
 import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import com.github.nhordiienko23.postservice.dto.CommentCreationRequest;
 import com.github.nhordiienko23.postservice.dto.CommentDTO;
@@ -11,6 +12,7 @@ import com.github.nhordiienko23.postservice.entity.Post;
 import com.github.nhordiienko23.postservice.enums.UserRole;
 import com.github.nhordiienko23.postservice.exception.notfound.CommentNotFoundException;
 import com.github.nhordiienko23.postservice.exception.notfound.PostNotFoundException;
+import com.github.nhordiienko23.postservice.mapper.CommentMapper;
 import com.github.nhordiienko23.postservice.mapper.OutboxEntryMapper;
 import com.github.nhordiienko23.postservice.repository.CommentRepository;
 import com.github.nhordiienko23.postservice.repository.OutboxRepository;
@@ -36,6 +38,8 @@ public class CommentServiceImpl implements CommentService {
     private final OutboxRepository outboxRepository;
     private final OutboxEntryMapper outboxEntryMapper;
     private final LeaderboardParticipantsJsonFactory participantsJsonFactory;
+    private final CommentMapper commentMapper;
+    private final LikeService likeService;
 
     @Override
     @Transactional
@@ -56,11 +60,8 @@ public class CommentServiceImpl implements CommentService {
 
         if (isSelfComment(savedComment)) {
             log.info(
-                    "Self-comment created without leaderboard points: "
-                            + "commentId={}, postId={}, userId={}",
-                    savedComment.getId(),
-                    postId,
-                    userId
+                    "Self-comment created without leaderboard points: commentId={}, postId={}, userId={}",
+                    savedComment.getId(), postId, userId
             );
         } else {
             String participantsJson = participantsJsonFactory.forComment(
@@ -77,9 +78,7 @@ public class CommentServiceImpl implements CommentService {
             outboxRepository.save(outboxEntry);
 
             log.info(
-                    "Comment leaderboard event queued: commentId={}, "
-                            + "postId={}, commentAuthorId={}, "
-                            + "postAuthorId={}, action={}",
+                    "Comment leaderboard event queued: commentId={}, postId={}, commentAuthorId={}, postAuthorId={}, action={}",
                     savedComment.getId(),
                     postId,
                     savedComment.getUserId(),
@@ -88,31 +87,23 @@ public class CommentServiceImpl implements CommentService {
             );
         }
 
-        return toDTO(savedComment);
+        return commentMapper.toDTO(savedComment);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<CommentDTO> getComments(
-            Long postId,
-            Pageable pageable
-    ) {
+    public Page<CommentDTO> getComments(Long postId, Pageable pageable) {
         findPost(postId);
 
-        return commentRepository
-                .findAllByPost_Id(postId, pageable)
-                .map(this::toDTO);
+        return commentRepository.findAllByPost_Id(postId, pageable)
+                .map(commentMapper::toDTO);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public CommentDTO getComment(
-            Long postId,
-            Long commentId
-    ) {
+    public CommentDTO getComment(Long postId, Long commentId) {
         findPost(postId);
-
-        return toDTO(findComment(postId, commentId));
+        return commentMapper.toDTO(findComment(postId, commentId));
     }
 
     @Override
@@ -131,7 +122,7 @@ public class CommentServiceImpl implements CommentService {
 
         comment.setContent(request.content());
 
-        return toDTO(commentRepository.save(comment));
+        return commentMapper.toDTO(commentRepository.save(comment));
     }
 
     @Override
@@ -147,21 +138,28 @@ public class CommentServiceImpl implements CommentService {
         Comment comment = findComment(postId, commentId);
         checkPermission(comment, actorId, role);
 
-        enqueueCommentDeletionIfScored(comment, actorId);
+        EventReason reason = role == UserRole.ADMIN
+                ? EventReason.MODERATION
+                : EventReason.USER_ACTION;
+
+        // Reverse points from scored likes before deleting them.
+        likeService.removeLikesForComment(comment, actorId, reason);
+
+        // Reverse the comment's score if its creation was scored.
+        enqueueCommentDeletionIfScored(comment, actorId, reason);
 
         commentRepository.delete(comment);
 
         log.info(
-                "Comment deleted: commentId={}, postId={}, actorId={}",
-                commentId,
-                postId,
-                actorId
+                "Comment deleted: commentId={}, postId={}, actorId={}, reason={}",
+                commentId, postId, actorId, reason
         );
     }
 
     private void enqueueCommentDeletionIfScored(
             Comment comment,
-            Long actorId
+            Long actorId,
+            EventReason reason
     ) {
         if (isSelfComment(comment)) {
             return;
@@ -176,8 +174,7 @@ public class CommentServiceImpl implements CommentService {
 
         if (!hasCreationEvent) {
             log.info(
-                    "No comment creation event found; "
-                            + "skipping score reversal: commentId={}",
+                    "No comment creation event found; skipping score reversal: commentId={}",
                     comment.getId()
             );
             return;
@@ -192,7 +189,8 @@ public class CommentServiceImpl implements CommentService {
                 outboxEntryMapper.toDeletedCommentOutboxEntry(
                         comment,
                         actorId,
-                        participantsJson
+                        participantsJson,
+                        reason
                 );
 
         outboxRepository.save(outboxEntry);
@@ -213,8 +211,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     private Comment findComment(Long postId, Long commentId) {
-        return commentRepository
-                .findByIdAndPost_Id(commentId, postId)
+        return commentRepository.findByIdAndPost_Id(commentId, postId)
                 .orElseThrow(() ->
                         new CommentNotFoundException(commentId, postId)
                 );
@@ -233,16 +230,5 @@ public class CommentServiceImpl implements CommentService {
                     "You can modify only your own comments"
             );
         }
-    }
-
-    private CommentDTO toDTO(Comment comment) {
-        return new CommentDTO(
-                comment.getId(),
-                comment.getContent(),
-                comment.getUserId(),
-                comment.getPost().getId(),
-                comment.getCreatedAt(),
-                comment.getUpdatedAt()
-        );
     }
 }

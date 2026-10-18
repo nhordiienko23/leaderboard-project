@@ -54,6 +54,28 @@ public class LeaderboardParticipantsJsonFactory {
         ));
     }
 
+    public String forLike(Long likerId, Long contentAuthorId) {
+        Objects.requireNonNull(likerId, "Liker ID must not be null");
+        Objects.requireNonNull(
+                contentAuthorId,
+                "Content author ID must not be null"
+        );
+
+        if (Objects.equals(likerId, contentAuthorId)) {
+            throw new IllegalArgumentException(
+                    "Users cannot receive points for liking their own content"
+            );
+        }
+
+        return serialize(List.of(
+                new ScoreParticipant(likerId, ParticipantRole.LIKER),
+                new ScoreParticipant(
+                        contentAuthorId,
+                        ParticipantRole.CONTENT_AUTHOR
+                )
+        ));
+    }
+
     private String serialize(List<ScoreParticipant> participants) {
         try {
             return jsonMapper.writeValueAsString(participants);

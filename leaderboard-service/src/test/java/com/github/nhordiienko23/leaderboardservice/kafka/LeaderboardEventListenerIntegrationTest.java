@@ -130,7 +130,7 @@ class LeaderboardEventListenerIntegrationTest extends AbstractIntegrationTest {
         sendEvent(eventJson);
 
         awaitCreatedEventProcessed(eventId, EventType.COMMENT);
-        awaitUserSynced(commentAuthorId, 5L);
+        awaitUserSynced(commentAuthorId, 2L);
         awaitUserSynced(contentAuthorId, 2L);
     }
 

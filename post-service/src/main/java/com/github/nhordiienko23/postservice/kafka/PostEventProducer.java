@@ -27,17 +27,16 @@ public class PostEventProducer {
             var metadata = result.getRecordMetadata();
 
             log.info(
-                    "Leaderboard event published: topic={}, key={}, partition={}, "
-                            + "offset={}, eventId={}, eventType={}, actionType={}",
+                    "Leaderboard event published: topic={}, key={}, partition={}, offset={}, eventId={}, eventType={}, actionType={}, reason={}",
                     metadata.topic(),
                     key,
                     metadata.partition(),
                     metadata.offset(),
                     event.eventId(),
                     event.eventType(),
-                    event.actionType()
+                    event.actionType(),
+                    event.reason()
             );
-
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
 
@@ -46,7 +45,6 @@ public class PostEventProducer {
                             + event.eventId(),
                     e
             );
-
         } catch (ExecutionException e) {
             throw new IllegalStateException(
                     "Failed to publish leaderboard event: topic=" + topic
