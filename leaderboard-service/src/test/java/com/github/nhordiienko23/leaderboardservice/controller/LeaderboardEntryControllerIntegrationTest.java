@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -118,5 +119,24 @@ class LeaderboardEntryControllerIntegrationTest
         }
 
         leaderboardEntryRepository.saveAll(entries);
+    }
+
+    @Test
+    void shouldRemoveStaleRedisEntriesWhenInitializingLeaderboard() {
+        redisTemplate.opsForZSet()
+                .add(LEADERBOARD_KEY, "999", 999.0);
+
+        saveEntries(2);
+
+        redisInitializer.run();
+
+        assertThat(redisTemplate.opsForZSet()
+                .score(LEADERBOARD_KEY, "999")).isNull();
+
+        assertThat(redisTemplate.opsForZSet()
+                .score(LEADERBOARD_KEY, "1")).isEqualTo(10.0);
+
+        assertThat(redisTemplate.opsForZSet()
+                .score(LEADERBOARD_KEY, "2")).isEqualTo(20.0);
     }
 }
