@@ -1,0 +1,45 @@
+
+server:
+  port: 8082
+
+spring:
+  application:
+    name: user-service
+
+  datasource:
+    url: ${USER_DB_URL:jdbc:postgresql://localhost:5435/user_db}
+    username: ${USER_DB_USERNAME:user_service_user}
+    password: ${USER_DB_PASSWORD:user_service_password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        "[enable.idempotence]": true
+
+app:
+  kafka:
+    topics:
+      user-profile-events: user-profile-events
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
