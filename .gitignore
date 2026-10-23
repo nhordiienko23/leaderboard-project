@@ -36,3 +36,6 @@ application-local.yml
 # Temporary files
 *.tmp
 *.swp
+
+/secrets/
+**/secrets/

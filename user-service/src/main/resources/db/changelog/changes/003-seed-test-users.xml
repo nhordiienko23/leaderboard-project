@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="003-seed-test-users" author="nhordiienko23" dbms="postgresql">
+        <preConditions onFail="HALT" onError="HALT">
+            <tableExists tableName="users"/>
+        </preConditions>
+
+        <!-- Test users. Password for all seeded users: q -->
+        <insert tableName="users">
+            <column name="username" value="q"/>
+            <column name="email" value="q@q.com"/>
+            <column name="password" value="$2y$10$6MdGE8yPd4aFQdjfqugmJuCJ4PFddW8etqIEyrZMCnw1hbbtSgn8y"/>
+            <column name="role" value="ADMIN"/>
+            <column name="registered_at" valueComputed="CURRENT_TIMESTAMP"/>
+            <column name="last_login_at" valueComputed="NULL"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+        <insert tableName="users">
+            <column name="username" value="nikita"/>
+            <column name="email" value="nikita@example.com"/>
+            <column name="password" value="$2y$10$6MdGE8yPd4aFQdjfqugmJuCJ4PFddW8etqIEyrZMCnw1hbbtSgn8y"/>
+            <column name="role" value="USER"/>
+            <column name="registered_at" valueComputed="CURRENT_TIMESTAMP"/>
+            <column name="last_login_at" valueComputed="NULL"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+
+        <insert tableName="users">
+            <column name="username" value="sveta"/>
+            <column name="email" value="sveta@example.com"/>
+            <column name="password" value="$2y$10$6MdGE8yPd4aFQdjfqugmJuCJ4PFddW8etqIEyrZMCnw1hbbtSgn8y"/>
+            <column name="role" value="USER"/>
+            <column name="registered_at" valueComputed="CURRENT_TIMESTAMP"/>
+            <column name="last_login_at" valueComputed="NULL"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+
+        <insert tableName="users">
+            <column name="username" value="yuri"/>
+            <column name="email" value="yuri@example.com"/>
+            <column name="password" value="$2y$10$6MdGE8yPd4aFQdjfqugmJuCJ4PFddW8etqIEyrZMCnw1hbbtSgn8y"/>
+            <column name="role" value="USER"/>
+            <column name="registered_at" valueComputed="CURRENT_TIMESTAMP"/>
+            <column name="last_login_at" valueComputed="NULL"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

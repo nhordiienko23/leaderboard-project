@@ -1,6 +1,5 @@
-
 server:
-  port: 8082
+  port: 8084
 
 spring:
   application:
@@ -22,11 +21,10 @@ spring:
 
   liquibase:
     enabled: true
-    change-log: classpath:db/changelog/db.changelog-master.yaml
+    change-log: classpath:db/changelog/db.changelog-master.xml
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
@@ -35,11 +33,19 @@ spring:
       properties:
         "[enable.idempotence]": true
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
 app:
   kafka:
     topics:
       user-profile-events: user-profile-events
 
-springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
+  security:
+    jwt:
+      issuer: http://user-service
+      audience: api-gateway
+      access-token-ttl-seconds: 900
+      refresh-token-ttl-days: 30
+      private-key-location: ${USER_JWT_PRIVATE_KEY_PATH:file:../secrets/user-service-private.pem}

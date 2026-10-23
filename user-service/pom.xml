@@ -37,10 +37,9 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
-        <!-- Authentication and password hashing -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
         </dependency>
 
         <!-- JWT generation and signing -->
@@ -67,7 +66,7 @@
             <artifactId>spring-boot-starter-liquibase</artifactId>
         </dependency>
 
-        <!-- Input validation: email, password, username -->
+        <!-- Input validation: email, password, login -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
