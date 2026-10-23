@@ -29,9 +29,14 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
       acks: all
-      retries: 3
+      retries: 2147483647
       properties:
         "[enable.idempotence]": true
+        "[delivery.timeout.ms]": 10000
+        "[request.timeout.ms]": 3000
+        "[max.block.ms]": 5000
+        spring.json.add.type.headers: false
+
 
 springdoc:
   swagger-ui:
@@ -41,6 +46,10 @@ app:
   kafka:
     topics:
       user-profile-events: user-profile-events
+    outbox:
+      poll-interval-ms: 1000
+      send-timeout-seconds: 15
+
 
   security:
     jwt:

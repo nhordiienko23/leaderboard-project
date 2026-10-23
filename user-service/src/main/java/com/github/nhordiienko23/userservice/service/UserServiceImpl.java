@@ -1,5 +1,6 @@
 package com.github.nhordiienko23.userservice.service;
 
+import com.github.nhordiienko23.leaderboardcontract.event.UserEventType;
 import com.github.nhordiienko23.userservice.dto.RegisterRequest;
 import com.github.nhordiienko23.userservice.dto.UpdatePasswordRequest;
 import com.github.nhordiienko23.userservice.dto.UpdateUserRequest;
@@ -29,6 +30,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final UserEventOutboxService userEventOutboxService;
 
     @Override
     @Transactional
@@ -36,12 +38,15 @@ public class UserServiceImpl implements UserService {
         if (userRole == null) {
             throw new InvalidUserArgumentException("User role is required");
         }
+
         String username = request.username().trim();
         String email = request.email().trim();
         String password = request.password();
+
         userRepository.validateUsername(username);
         userRepository.validateEmail(email);
         validateBcryptPasswordLength(password);
+
         RegisterRequest normalizedRequest = RegisterRequest.builder()
                 .username(username)
                 .email(email)
@@ -49,17 +54,17 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         User user = userMapper.toEntity(normalizedRequest);
-
         user.setPassword(passwordEncoder.encode(password));
         user.setRole(userRole);
 
         User savedUser = userRepository.save(user);
 
-        log.info(
-                "New user was created id={}, login={}",
-                savedUser.getId(),
-                savedUser.getUsername()
+        userEventOutboxService.enqueue(
+                savedUser.getId(), savedUser.getUsername(), UserEventType.CREATED
         );
+
+        log.info("New user was created id={}, login={}",
+                savedUser.getId(), savedUser.getUsername());
 
         return userMapper.toResponse(savedUser);
     }
@@ -80,6 +85,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponse updateUser(Long userId, UpdateUserRequest request) {
         User user = findUserById(userId);
+        String previousUsername = user.getUsername();
 
         if (request.username() != null && !request.username().isBlank()) {
             String username = request.username().trim();
@@ -98,6 +104,13 @@ public class UserServiceImpl implements UserService {
         }
 
         User saved = userRepository.save(user);
+
+        if (!saved.getUsername().equals(previousUsername)) {
+            userEventOutboxService.enqueue(
+                    saved.getId(), saved.getUsername(), UserEventType.UPDATED
+            );
+        }
+
         log.info("User profile updated: id={}", saved.getId());
         return userMapper.toResponse(saved);
     }
@@ -138,7 +151,6 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 
-
     @Override
     @Transactional(readOnly = true)
     public Optional<User> findUserByUsernameOrEmail(String identifier) {
@@ -147,21 +159,13 @@ public class UserServiceImpl implements UserService {
         }
 
         String value = identifier.trim();
-
-        return userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(
-                value,
-                value
-        );
+        return userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(value, value);
     }
 
-
-    /**
-     * BCrypt only considers up to 72 bytes; characters and bytes are not equivalent.
-     */
+    /** BCrypt considers at most 72 UTF-8 bytes, not 72 Java characters. */
     private void validateBcryptPasswordLength(String password) {
         if (password == null || password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new InvalidUserArgumentException("Password must not exceed 72 UTF-8 bytes");
         }
     }
-
 }
