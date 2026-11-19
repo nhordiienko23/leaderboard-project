@@ -88,6 +88,8 @@ public class RefreshTokenService {
                     }
                 });
     }
+    public record RotatedRefreshToken(Long userId, String rawToken) {
+    }
 
     private void saveToken(Long userId, String rawToken) {
         Instant now = Instant.now();
@@ -123,4 +125,5 @@ public class RefreshTokenService {
             );
         }
     }
+
 }

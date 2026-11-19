@@ -1,3 +1,4 @@
+
 package com.github.nhordiienko23.userservice.service;
 
 import com.github.nhordiienko23.userservice.dto.LoginRequest;
@@ -23,6 +24,14 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
+    private static final String INVALID_CREDENTIALS_MESSAGE =
+            "Invalid username/email or password";
+
+    private static final String INVALID_REFRESH_TOKEN_MESSAGE =
+            "Invalid refresh token";
+
+    private static final int MAX_BCRYPT_PASSWORD_BYTES = 72;
+
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -31,7 +40,6 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public UserResponse register(RegisterRequest request) {
-        // Public registration can create only USER accounts.
         return userService.createUser(request, UserRole.USER);
     }
 
@@ -41,22 +49,20 @@ public class AuthServiceImpl implements AuthService {
         String identifier = request.login().trim();
         String password = request.password();
 
-        // Do not let an oversized UTF-8 password cause a BCrypt error.
-        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+        if (password.getBytes(StandardCharsets.UTF_8).length
+                > MAX_BCRYPT_PASSWORD_BYTES) {
             throw new InvalidAuthenticationException(
-                    "Invalid username/email or password"
+                    INVALID_CREDENTIALS_MESSAGE
             );
         }
 
         User user = userService.findUserByUsernameOrEmail(identifier)
-                .filter(found ->
-                        passwordEncoder.matches(
-                                password,
-                                found.getPassword()
-                        )
-                )
+                .filter(found -> passwordEncoder.matches(
+                        password,
+                        found.getPassword()
+                ))
                 .orElseThrow(() -> new InvalidAuthenticationException(
-                        "Invalid username/email or password"
+                        INVALID_CREDENTIALS_MESSAGE
                 ));
 
         return issueTokens(user);
@@ -65,7 +71,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenResponse refresh(RefreshTokenRequest request) {
-        RotatedRefreshToken rotated =
+        RefreshTokenService.RotatedRefreshToken rotated =
                 refreshTokenService.rotate(request.refreshToken());
 
         User user;
@@ -74,14 +80,13 @@ public class AuthServiceImpl implements AuthService {
             user = userService.findUserById(rotated.userId());
         } catch (UserNotFoundException exception) {
             throw new InvalidAuthenticationException(
-                    "Invalid refresh token"
+                    INVALID_REFRESH_TOKEN_MESSAGE
             );
         }
 
-        // The role comes from the current User record, not the old JWT.
         return new TokenResponse(
                 jwtService.createAccessToken(user),
-                rotated.refreshToken(),
+                rotated.rawToken(),
                 "Bearer",
                 jwtService.getAccessTokenTtlSeconds()
         );

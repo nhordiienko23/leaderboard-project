@@ -57,4 +57,4 @@ app:
       audience: api-gateway
       access-token-ttl-seconds: 900
       refresh-token-ttl-days: 30
-      private-key-location: ${USER_JWT_PRIVATE_KEY_PATH:file:../secrets/user-service-private.pem}
+      private-key-location: ${USER_JWT_PRIVATE_KEY_PATH:file:./secrets/user-service-private.pem}
