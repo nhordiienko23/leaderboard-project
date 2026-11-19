@@ -1,6 +1,7 @@
 package com.github.nhordiienko23.leaderboardservice.kafka;
 
 import com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent;
+import com.github.nhordiienko23.leaderboardcontract.event.UserEvent;
 import com.github.nhordiienko23.leaderboardservice.service.LeaderboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,13 +17,15 @@ public class LeaderboardEventListener {
 
     private final LeaderboardService leaderboardService;
 
-    @KafkaListener(topics = KafkaTopics.LEADERBOARD_EVENTS)
+    @KafkaListener(
+            topics = KafkaTopics.LEADERBOARD_EVENTS,
+            containerFactory = "leaderboardKafkaListenerContainerFactory"
+    )
     public void handleLeaderboardEvent(LeaderboardEvent event) {
         Objects.requireNonNull(event, "Leaderboard event must not be null");
 
         log.info(
-                "Received leaderboard event: eventId={}, entityId={}, "
-                        + "eventType={}, actionType={}",
+                "Received leaderboard event: eventId={}, entityId={}, eventType={}, actionType={}",
                 event.eventId(),
                 event.entityId(),
                 event.eventType(),
@@ -30,5 +33,23 @@ public class LeaderboardEventListener {
         );
 
         leaderboardService.processLeaderboardEvent(event);
+    }
+
+    @KafkaListener(
+            topics = KafkaTopics.USER_EVENTS,
+            containerFactory = "userKafkaListenerContainerFactory"
+    )
+    public void handleUserEvent(UserEvent event) {
+        Objects.requireNonNull(event, "User event must not be null");
+
+        log.info(
+                "Received user event: eventId={}, userId={}, username={}, actionType={}",
+                event.eventId(),
+                event.userId(),
+                event.username(),
+                event.actionType()
+        );
+
+        leaderboardService.processUserEvent(event);
     }
 }
