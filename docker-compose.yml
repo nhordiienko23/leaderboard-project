@@ -1,76 +1,76 @@
+
 services:
   post-db:
     image: postgres:16-alpine
     container_name: post-service-db
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: post_db
       POSTGRES_USER: post_user
       POSTGRES_PASSWORD: post_password
-
     ports:
       - "5432:5432"
-
     volumes:
       - post-db-data:/var/lib/postgresql/data
+
+  user-db:
+    image: postgres:16-alpine
+    container_name: user-service-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: user_service_user
+      POSTGRES_PASSWORD: user_service_password
+    ports:
+      - "5435:5432"
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_service_user -d user_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   kafka:
     image: apache/kafka:latest
     container_name: post-service-kafka
     hostname: kafka
     restart: unless-stopped
-
     ports:
       - "9092:9092"
-
     environment:
       KAFKA_NODE_ID: 1
-
       KAFKA_PROCESS_ROLES: broker,controller
-
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
         CONTROLLER:PLAINTEXT,
         INTERNAL:PLAINTEXT,
         EXTERNAL:PLAINTEXT
-
       KAFKA_LISTENERS: >
         INTERNAL://:19092,
         EXTERNAL://:9092,
         CONTROLLER://:9093
-
       KAFKA_ADVERTISED_LISTENERS: >
         INTERNAL://kafka:19092,
         EXTERNAL://localhost:9092
-
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
-
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
-
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: post-service-kafka-ui
     restart: unless-stopped
-
     ports:
       - "8081:8080"
-
     depends_on:
       - kafka
-
     environment:
       KAFKA_CLUSTERS_0_NAME: post-service-kafka
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
@@ -87,6 +87,7 @@ services:
       - "5434:5432"
     volumes:
       - leaderboard-db-data:/var/lib/postgresql/data
+
   redis:
     image: redis:7-alpine
     container_name: leaderboard-redis
@@ -99,5 +100,6 @@ services:
 
 volumes:
   post-db-data:
+  user-db-data:
   leaderboard-db-data:
   leaderboard-redis-data:

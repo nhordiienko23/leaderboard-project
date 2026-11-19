@@ -2,13 +2,16 @@ package com.github.nhordiienko23.leaderboardservice.service;
 
 import com.github.nhordiienko23.leaderboardcontract.event.LeaderboardEvent;
 import com.github.nhordiienko23.leaderboardcontract.event.ScoreParticipant;
+import com.github.nhordiienko23.leaderboardcontract.event.UserEvent;
 import com.github.nhordiienko23.leaderboardservice.config.LeaderboardScoringProperties;
 import com.github.nhordiienko23.leaderboardservice.dto.LeaderboardEntryDTO;
 import com.github.nhordiienko23.leaderboardservice.entity.LeaderboardEntry;
 import com.github.nhordiienko23.leaderboardservice.entity.ProcessedEvent;
+import com.github.nhordiienko23.leaderboardservice.entity.ProcessedUserEvent;
 import com.github.nhordiienko23.leaderboardservice.entity.RedisSyncOutbox;
 import com.github.nhordiienko23.leaderboardservice.repository.LeaderboardEntryRepository;
 import com.github.nhordiienko23.leaderboardservice.repository.ProcessedEventRepository;
+import com.github.nhordiienko23.leaderboardservice.repository.ProcessedUserEventRepository;
 import com.github.nhordiienko23.leaderboardservice.repository.RedisSyncOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +33,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     private final LeaderboardEntryRepository leaderboardEntryRepository;
     private final ProcessedEventRepository processedEventRepository;
+    private final ProcessedUserEventRepository processedUserEventRepository;
     private final StringRedisTemplate redisTemplate;
     private final RedisSyncOutboxRepository redisSyncOutboxRepository;
     private final LeaderboardScoringProperties scoringProperties;
@@ -140,6 +144,63 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                         .actionType(event.actionType())
                         .build()
         );
+    }
+
+    @Override
+    @Transactional
+    public void processUserEvent(UserEvent event) {
+        Objects.requireNonNull(event, "Leaderboard event must not be null");
+        Objects.requireNonNull(event.eventId(), "Event ID must not be null");
+        Objects.requireNonNull(event.userId(), "User ID must not be null");
+        Objects.requireNonNull(event.actionType(), "Action type must not be null");
+        Objects.requireNonNull(event.username(), "Username must not be null");
+
+        if (processedUserEventRepository.existsById(
+                event.eventId()
+        )) {
+            log.debug(
+                    "Duplicate event skipped: eventId={}, userId={}, username={}, actionType={}",
+                    event.eventId(),
+                    event.userId(),
+                    event.username(),
+                    event.actionType()
+            );
+            return;
+        }
+
+        LeaderboardEntry leaderboardEntry = leaderboardEntryRepository.findByUserId(event.userId())
+                .orElseGet(() -> LeaderboardEntry.builder()
+                        .userId(event.userId())
+                        .username(event.username())
+                        .points(0L)
+                        .build());
+
+        leaderboardEntry.setUsername(event.username());
+        leaderboardEntryRepository.save(leaderboardEntry);
+        redisSyncOutboxRepository.save(
+                RedisSyncOutbox.builder()
+                        .userId(event.userId())
+                        .processed(false)
+                        .attempts(0)
+                        .build()
+        );
+
+        ProcessedUserEvent processedUserEvent = ProcessedUserEvent.builder()
+                .eventId(event.eventId())
+                .userId(event.userId())
+                .username(event.username())
+                .eventType(event.actionType())
+                .build();
+
+        processedUserEventRepository.save(processedUserEvent);
+
+        log.info(
+                "Username for user successfullyUpdated userId={},username={}",
+                event.userId(),
+                event.username()
+        );
+
+
     }
 
     @Override
