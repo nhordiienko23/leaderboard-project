@@ -1,0 +1,66 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+
+            - id: post-service
+              uri: ${gateway.downstream-services.post-service:http://localhost:8080}
+              predicates:
+                - Path=/api/posts/**
+
+            - id: leaderboard-service
+              uri: ${gateway.downstream-services.leaderboard-service:http://localhost:8082}
+              predicates:
+                - Path=/api/leaderboard/**
+
+            - id: user-auth-service
+              uri: ${gateway.downstream-services.user-service:http://localhost:8084}
+              predicates:
+                - Path=/api/auth/**
+
+            - id: user-service
+              uri: ${gateway.downstream-services.user-service:http://localhost:8084}
+              predicates:
+                - Path=/api/users/**
+
+            - id: user-admin-service
+              uri: ${gateway.downstream-services.user-service:http://localhost:8084}
+              predicates:
+                - Path=/api/admin/users/**
+
+gateway:
+  jwt:
+    issuer: ${GATEWAY_JWT_ISSUER:http://user-service}
+    audience: ${GATEWAY_JWT_AUDIENCE:api-gateway}
+    public-key-location: ${GATEWAY_PUBLIC_KEY_LOCATION:file:../secrets/user-service-public.pem}
+  downstream-services:
+    user-service: ${USER_SERVICE_URL:http://localhost:8084}
+    post-service: ${POST_SERVICE_URL:http://localhost:8080}
+    leaderboard-service: ${LEADERBOARD_SERVICE_URL:http://localhost:8082}
+  cors:
+    allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:[]}
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - Authorization
+      - Content-Type
+      - Accept
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

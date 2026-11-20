@@ -1,0 +1,20 @@
+# Repository metadata
+.git
+.gitignore
+
+# IDE and build output
+.idea
+**/.idea
+**/target
+**/.classpath
+**/.project
+**/.settings
+.vscode
+
+# Local environment and secrets
+.env
+.env.*
+secrets/
+**/secrets/
+*.pem
+
