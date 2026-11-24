@@ -6,10 +6,23 @@
 
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
     <groupId>com.github.nhordiienko23</groupId>
     <artifactId>leaderboard-project</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
+
+    <properties>
+        <!-- Keep caller JVM arguments separate from JaCoCo's late-bound agent. -->
+        <argLine/>
+        <jacocoAgent/>
+    </properties>
 
     <modules>
         <module>leaderboard-contract</module>
@@ -17,6 +30,42 @@
         <module>leaderboard-service</module>
         <module>user-service</module>
         <module>api-gateway</module>
+        <module>coverage-report</module>
     </modules>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.14</version>
+                <configuration>
+                    <propertyName>jacocoAgent</propertyName>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{jacocoAgent} ${argLine}</argLine>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

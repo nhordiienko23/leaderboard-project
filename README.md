@@ -2,6 +2,36 @@
 
 Event-driven microservices project built with Java and Spring Boot.
 
+## Backend tests and coverage
+
+Use Java 25 (set `JAVA_HOME` accordingly), Maven, and a running Docker daemon for
+the Testcontainers integration tests. From the repository root, run:
+
+```bash
+mvn clean verify
+```
+
+For one service and its reactor dependencies, for example:
+
+```bash
+mvn -pl post-service -am clean verify
+```
+
+JaCoCo writes each tested service's report to
+`<module>/target/site/jacoco/index.html` and the full reactor report to
+`target/site/jacoco-aggregate/index.html`. Open an `index.html` file in a
+browser. The aggregate is produced only when the `coverage-report` module is
+built, as in the full command; a service-only build does not produce it.
+Because the root participates in the service-only command, `clean` also
+removes any previous aggregate report.
+
+The aggregate includes `post-service`, `leaderboard-service`, `user-service`,
+`api-gateway`, and the shared `leaderboard-contract`. The contract has no tests
+of its own, so it has no individual execution data or report; coverage of its
+classes exercised by service tests appears in the aggregate. The reporting
+module contains no application code, and the React frontend uses separate
+coverage tooling.
+
 ## Services
 
 - API Gateway — external application entry point
