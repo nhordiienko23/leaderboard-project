@@ -79,16 +79,16 @@ export function PostCard({ post, onUpdated, onDeleted, engagementRefreshKey }: P
 
   return (
     <>
-      <article className="rounded-xl border border-lb-border bg-lb-surface p-5 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+      <article className="min-w-0 rounded-xl border border-lb-border bg-lb-surface p-5 shadow-sm">
+        <div className="flex min-w-0 flex-col items-start justify-between gap-4 sm:flex-row">
+          <div className="min-w-0 w-full flex-1">
             <p className="text-xs font-medium text-lb-muted"><UserName userId={post.userId} /></p>
-            <Link to={`/posts/${post.id}`} className="mt-2 block whitespace-pre-wrap wrap-break-word text-base text-lb-text hover:text-lb-primary-hover">
+            <Link to={`/posts/${post.id}`} className="mt-2 block whitespace-break-spaces wrap-anywhere text-base text-lb-text hover:text-lb-primary-hover">
               {post.content}
             </Link>
           </div>
           {canMutate && (
-            <div className="flex shrink-0 gap-1">
+            <div className="flex max-w-full flex-wrap gap-1">
               <Button variant="ghost" icon={<Pencil size={16} aria-hidden="true" />} aria-label={`Edit post ${post.id}`} onClick={() => { setContent(post.content); setError(undefined); setFieldError(undefined); setEditOpen(true) }}>Edit</Button>
               <Button variant="ghost" icon={<Trash2 size={16} aria-hidden="true" />} aria-label={`Delete post ${post.id}`} onClick={() => { setError(undefined); setDeleteOpen(true) }}>Delete</Button>
             </div>
@@ -118,7 +118,7 @@ export function PostCard({ post, onUpdated, onDeleted, engagementRefreshKey }: P
             {fieldError ?? `${content.length}/255 characters`}
           </p>
           {error && <div className="mt-3"><Alert tone="error" title={httpErrorTitle(error)}>{error.message}</Alert></div>}
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
             <Button variant="secondary" disabled={pending} onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button loading={pending} disabled={!content.trim()} onClick={save}>Save changes</Button>
           </div>
@@ -127,7 +127,7 @@ export function PostCard({ post, onUpdated, onDeleted, engagementRefreshKey }: P
 
       <Dialog open={deleteOpen} title="Delete post" description="This action cannot be undone." onClose={() => !pending && setDeleteOpen(false)}>
         {error && <div className="mb-4"><Alert tone="error" title={httpErrorTitle(error)}>{error.message}</Alert></div>}
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <Button variant="secondary" disabled={pending} onClick={() => setDeleteOpen(false)}>Cancel</Button>
           <Button variant="danger" loading={pending} onClick={remove}>Delete post</Button>
         </div>

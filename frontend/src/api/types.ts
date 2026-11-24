@@ -72,6 +72,15 @@ export interface PostEngagementResponse {
   likedByMe: boolean | null;
 }
 
+export interface ProfileActivityResponse {
+  postsCreated: number;
+  commentsAuthored: number;
+  postLikesGiven: number;
+  commentLikesGiven: number;
+  postLikesReceived: number;
+  commentLikesReceived: number;
+}
+
 export interface CommentEngagementResponse {
   likeCount: number;
   likedByMe: boolean | null;

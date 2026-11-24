@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as usersApi from '../../api/users'
+import * as postsApi from '../../api/posts'
 import type { PageResponse, UserResponse } from '../../api/types'
 import { UserDirectoryPage } from './UserDirectoryPage'
 import { UserProfilePage } from './UserProfilePage'
@@ -58,6 +59,9 @@ function renderProfile(id = '21') {
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  vi.spyOn(postsApi, 'getProfileActivity').mockResolvedValue({
+    data: { postsCreated: 0, commentsAuthored: 0, postLikesGiven: 0, commentLikesGiven: 0, postLikesReceived: 0, commentLikesReceived: 0 },
+  } as never)
 })
 
 describe('Phase 9 user directory and profiles', () => {
@@ -133,7 +137,7 @@ describe('Phase 9 user directory and profiles', () => {
     await waitFor(() => expect(getUsers).toHaveBeenCalledTimes(callsBeforeRetry + 1))
   })
 
-  it('retrieves and displays only supported profile details', async () => {
+  it('retrieves profile details and hides zero activity', async () => {
     const getUser = vi.spyOn(usersApi, 'getUser').mockResolvedValue({ data: firstUser } as never)
     renderProfile()
 

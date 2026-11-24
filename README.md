@@ -44,3 +44,22 @@ Clients → API Gateway → Post/User/Leaderboard Services
 
 Post Service → PostgreSQL
 Post Service → Kafka → Leaderboard Service → Redis
+
+## Profile activity API
+
+`GET /api/posts/users/{userId}/activity` is available through the Gateway to authenticated users. `userId` must be a positive integer; invalid IDs return HTTP 400. Post Service does not own user accounts, so an unknown positive ID returns zero counts; profile existence is determined by User Service.
+
+The response contains six non-negative integer counts:
+
+```json
+{
+  "postsCreated": 12,
+  "commentsAuthored": 35,
+  "postLikesGiven": 20,
+  "commentLikesGiven": 14,
+  "postLikesReceived": 48,
+  "commentLikesReceived": 9
+}
+```
+
+Counts reflect currently stored posts, comments, and their separate like targets, including self-likes. Removing likes or deleting their target content changes these counts; they are not leaderboard scores or historical totals.
