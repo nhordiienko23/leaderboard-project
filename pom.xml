@@ -30,7 +30,6 @@
         <module>leaderboard-service</module>
         <module>user-service</module>
         <module>api-gateway</module>
-        <module>coverage-report</module>
     </modules>
 
     <build>
