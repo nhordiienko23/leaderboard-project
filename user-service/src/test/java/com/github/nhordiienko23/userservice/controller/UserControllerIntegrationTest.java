@@ -74,6 +74,21 @@ class UserControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
         peer = saveUser("peer", "peer@example.com", passwordHash);
     }
 
+    @Test
+    void getUserSummaryShouldExposeOnlyIdAndUsernameWithoutAuthentication() throws Exception {
+        MockHttpServletResponse response = perform(
+                get(BASE + "/{id}/summary", peer.getId()), 200
+        );
+        assertThat(jsonBody(response))
+                .containsOnlyKeys("id", "username")
+                .containsEntry("username", "peer");
+    }
+
+    @Test
+    void getUserSummaryShouldReturnNotFoundForMissingUser() throws Exception {
+        perform(get(BASE + "/{id}/summary", Long.MAX_VALUE), 404);
+    }
+
     @Nested
     @DisplayName("GET /api/users/{id}")
     class GetUserById {

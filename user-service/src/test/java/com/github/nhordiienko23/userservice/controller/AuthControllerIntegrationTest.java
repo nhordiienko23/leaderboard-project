@@ -1,14 +1,18 @@
 package com.github.nhordiienko23.userservice.controller;
 
 import com.github.nhordiienko23.leaderboardcontract.event.UserEventType;
+import com.github.nhordiienko23.userservice.dto.LoginRequest;
 import com.github.nhordiienko23.userservice.entity.RefreshToken;
 import com.github.nhordiienko23.userservice.entity.User;
 import com.github.nhordiienko23.userservice.entity.UserRole;
 import com.github.nhordiienko23.userservice.repository.RefreshTokenRepository;
 import com.github.nhordiienko23.userservice.repository.UserEventOutboxRepository;
 import com.github.nhordiienko23.userservice.repository.UserRepository;
+import com.github.nhordiienko23.userservice.security.JwtService;
+import com.github.nhordiienko23.userservice.service.AuthService;
 import com.github.nhordiienko23.userservice.testcontainers.AbstractUserServiceIntegrationTest;
 import com.jayway.jsonpath.JsonPath;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -23,17 +27,24 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 @AutoConfigureMockMvc(addFilters = false)
@@ -74,6 +85,18 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
 
     @Autowired
     private JwtEncoder jwtEncoder;
+
+    @Autowired
+    private AuthService authService;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @MockitoSpyBean
+    private JwtService jwtService;
 
     @BeforeEach
     @DisplayName("Configure JWT encoder mock")
@@ -124,6 +147,7 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
 
             assertThat(saved.getUsername()).isEqualTo("new-user");
             assertThat(saved.getRole()).isEqualTo(UserRole.USER);
+            assertThat(saved.getLastLoginAt()).isNull();
             assertThat(passwordEncoder.matches(PASSWORD, saved.getPassword()))
                     .isTrue();
 
@@ -189,7 +213,9 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
         @DisplayName("Should issue tokens when username or email and password are valid")
         void loginShouldIssueTokensWhenCredentialsAreValid(String identifier)
                 throws Exception {
-            saveUser("existing-user", "existing@example.com");
+            User user = saveUser("existing-user", "existing@example.com");
+            assertThat(user.getLastLoginAt()).isNull();
+            LocalDateTime before = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
 
             MockHttpServletResponse response = perform(
                     post(BASE + "/login")
@@ -199,6 +225,18 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
             );
 
             assertTokenResponse(jsonBody(response));
+            LocalDateTime after = LocalDateTime.now().plusNanos(1000);
+            User persisted = users.findById(user.getId()).orElseThrow();
+            assertThat(persisted.getLastLoginAt()).isBetween(before, after);
+            assertThat(persisted.getUpdatedAt()).isBetween(before, after);
+
+            MockHttpServletResponse profile = perform(
+                    get("/api/users/{id}", user.getId())
+                            .header("X-User-Id", user.getId()),
+                    200
+            );
+            assertThat(LocalDateTime.parse((String) jsonBody(profile).get("lastLoginAt")))
+                    .isEqualTo(persisted.getLastLoginAt());
 
             assertThat(refreshTokens.findAll())
                     .singleElement()
@@ -216,7 +254,10 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
         @DisplayName("Should reject invalid credentials without issuing a refresh token")
         void loginShouldReturnUnauthorizedWhenCredentialsAreInvalid(String body)
                 throws Exception {
-            saveUser("existing-user", "existing@example.com");
+            User user = saveUser("existing-user", "existing@example.com");
+            LocalDateTime previousLogin = LocalDateTime.of(2020, 1, 1, 0, 0);
+            user.setLastLoginAt(previousLogin);
+            users.saveAndFlush(user);
 
             perform(
                     post(BASE + "/login")
@@ -225,6 +266,50 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
                     401
             );
 
+            assertThat(refreshTokens.count()).isZero();
+            assertThat(users.findById(user.getId()).orElseThrow().getLastLoginAt())
+                    .isEqualTo(previousLogin);
+        }
+
+        @Test
+        @DisplayName("Should roll back token issuance failure without changing the login timestamp")
+        void loginShouldRollBackWhenTokenResponseCannotBeCompleted() {
+            User user = saveUser("existing-user", "existing@example.com");
+            LocalDateTime previousLogin = LocalDateTime.of(2020, 1, 1, 0, 0);
+            user.setLastLoginAt(previousLogin);
+            users.saveAndFlush(user);
+            doThrow(new IllegalStateException("Token issuance failed"))
+                    .when(jwtService).getAccessTokenTtlSeconds();
+
+            assertThatThrownBy(() -> authService.login(
+                    new LoginRequest("existing-user", PASSWORD)))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Token issuance failed");
+
+            assertThat(refreshTokens.count()).isZero();
+            assertThat(users.findById(user.getId()).orElseThrow().getLastLoginAt())
+                    .isEqualTo(previousLogin);
+        }
+
+        @Test
+        @DisplayName("Should roll back a flushed login timestamp when its transaction fails")
+        void loginShouldRollBackTimestampWhenTransactionFails() {
+            User user = saveUser("existing-user", "existing@example.com");
+            LocalDateTime previousLogin = LocalDateTime.of(2020, 1, 1, 0, 0);
+            user.setLastLoginAt(previousLogin);
+            users.saveAndFlush(user);
+
+            assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+                authService.login(new LoginRequest("existing-user", PASSWORD));
+                entityManager.flush();
+                assertThat(users.findById(user.getId()).orElseThrow().getLastLoginAt())
+                        .isAfter(previousLogin);
+                throw new IllegalStateException("Force transaction rollback");
+            })).isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Force transaction rollback");
+
+            assertThat(users.findById(user.getId()).orElseThrow().getLastLoginAt())
+                    .isEqualTo(previousLogin);
             assertThat(refreshTokens.count()).isZero();
         }
     }
@@ -237,9 +322,12 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
         @DisplayName("Should rotate the token and reject reuse of the old token")
         void refreshShouldRotateTokenAndRejectReplayWhenTokenIsValid()
                 throws Exception {
-            saveUser("existing-user", "existing@example.com");
+            User user = saveUser("existing-user", "existing@example.com");
 
             String oldToken = loginAndGetRefreshToken("existing-user");
+            LocalDateTime lastLogin = users.findById(user.getId())
+                    .orElseThrow().getLastLoginAt();
+            assertThat(lastLogin).isNotNull();
 
             RefreshToken original = refreshTokens.findAll().getFirst();
 
@@ -251,6 +339,8 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
             );
 
             assertTokenResponse(jsonBody(response));
+            assertThat(users.findById(user.getId()).orElseThrow().getLastLoginAt())
+                    .isEqualTo(lastLogin);
 
             assertThat(refreshTokens.findAll()).hasSize(2);
 
@@ -303,9 +393,11 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
         @Test
         @DisplayName("Should revoke the refresh token when it is valid")
         void logoutShouldRevokeTokenWhenTokenIsValid() throws Exception {
-            saveUser("existing-user", "existing@example.com");
+            User user = saveUser("existing-user", "existing@example.com");
 
             String token = loginAndGetRefreshToken("existing-user");
+            LocalDateTime lastLogin = users.findById(user.getId())
+                    .orElseThrow().getLastLoginAt();
 
             RefreshToken issued = refreshTokens.findAll().getFirst();
 
@@ -319,6 +411,8 @@ class AuthControllerIntegrationTest extends AbstractUserServiceIntegrationTest {
             assertThat(refreshTokens.findById(issued.getId())
                     .orElseThrow()
                     .getRevokedAt()).isNotNull();
+            assertThat(users.findById(user.getId()).orElseThrow().getLastLoginAt())
+                    .isEqualTo(lastLogin);
 
             perform(
                     post(BASE + "/refresh")

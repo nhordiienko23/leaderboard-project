@@ -4,6 +4,7 @@ import com.github.nhordiienko23.userservice.dto.PageResponse;
 import com.github.nhordiienko23.userservice.dto.UpdatePasswordRequest;
 import com.github.nhordiienko23.userservice.dto.UpdateUserRequest;
 import com.github.nhordiienko23.userservice.dto.UserResponse;
+import com.github.nhordiienko23.userservice.dto.UserSummaryResponse;
 import com.github.nhordiienko23.userservice.security.UserAccessPolicy;
 import com.github.nhordiienko23.userservice.service.UserService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,6 +34,12 @@ public class UserController {
 
     private final UserService userService;
     private final UserAccessPolicy accessPolicy;
+
+    @GetMapping("/{id}/summary")
+    public ResponseEntity<UserSummaryResponse> getUserSummary(@PathVariable Long id) {
+        UserResponse user = userService.getUserById(id);
+        return ResponseEntity.ok(new UserSummaryResponse(user.id(), user.username()));
+    }
 
     /** Any authenticated user may view another user's public profile. */
     @GetMapping("/{id}")

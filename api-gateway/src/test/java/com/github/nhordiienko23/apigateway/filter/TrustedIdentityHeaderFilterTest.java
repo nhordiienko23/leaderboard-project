@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -40,6 +41,7 @@ class TrustedIdentityHeaderFilterTest {
 
         @ParameterizedTest
         @CsvSource({
+                "GET,/api/users/42/summary",
                 "GET,/api/posts",
                 "GET,/api/posts/42",
                 "GET,/api/posts/42/comments",
@@ -187,6 +189,46 @@ class TrustedIdentityHeaderFilterTest {
             assertThat(chain.request.getHeader("X-User-Id")).isNull();
             assertThat(chain.request.getHeader("X-User-Role")).isNull();
         }
+
+        @ParameterizedTest
+        @ValueSource(strings = {
+                "/api/posts/42/engagement",
+                "/api/posts/42/comments/7/engagement"
+        })
+        @DisplayName("engagementIdentity_shouldComeFromJwt_whenEngagementSummaryIsForwarded")
+        void engagementIdentity_shouldComeFromJwt_whenEngagementSummaryIsForwarded(String path)
+                throws Exception {
+            authenticateJwt("USER");
+
+            MockHttpServletRequest request = request("GET", path);
+            request.addHeader("X-User-Id", "999");
+            request.addHeader("X-User-Role", "ADMIN");
+
+            CapturingFilterChain chain = new CapturingFilterChain();
+            filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+            assertThat(chain.request.getHeader("X-User-Id")).isEqualTo("42");
+            assertThat(chain.request.getHeader("X-User-Role")).isNull();
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {
+                "/api/posts/42/engagement",
+                "/api/posts/42/comments/7/engagement"
+        })
+        @DisplayName("engagementIdentity_shouldBeRemoved_whenJwtIsMissing")
+        void engagementIdentity_shouldBeRemoved_whenJwtIsMissing(String path)
+                throws Exception {
+            MockHttpServletRequest request = request("GET", path);
+            request.addHeader("X-User-Id", "999");
+            request.addHeader("X-User-Role", "ADMIN");
+
+            CapturingFilterChain chain = new CapturingFilterChain();
+            filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+            assertThat(chain.request.getHeader("X-User-Id")).isNull();
+            assertThat(chain.request.getHeader("X-User-Role")).isNull();
+        }
     }
 
     private static MockHttpServletRequest request(String method, String path) {
@@ -221,4 +263,3 @@ class TrustedIdentityHeaderFilterTest {
         }
     }
 }
-

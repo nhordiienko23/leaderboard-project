@@ -6,6 +6,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -139,6 +141,14 @@ class ApiGatewayApplicationTests {
     }
 
     @Test
+    void publicUserSummaryShouldForwardWithoutAuthentication() {
+        clearRequests();
+        assertThat(exchangeStatus("GET", "/api/users/7/summary", null)).isEqualTo(200);
+        assertThat(USER_REQUESTS).singleElement().matches(request ->
+                request.requestTarget().equals("/api/users/7/summary"));
+    }
+
+    @Test
     @DisplayName("protectedEndpoint_shouldReturnUnauthorized_whenTokenIsMissing")
     void protectedEndpoint_shouldReturnUnauthorized_whenTokenIsMissing() {
         clearRequests();
@@ -183,6 +193,107 @@ class ApiGatewayApplicationTests {
         int status = exchangeStatus("GET", "/api/posts", null);
         assertThat(status).isEqualTo(200);
         assertThat(POST_REQUESTS).singleElement();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/posts/42/engagement",
+            "/api/posts/42/comments/7/engagement"
+    })
+    @DisplayName("engagementSummary_shouldForwardWithoutIdentity_whenJwtIsMissing")
+    void engagementSummary_shouldForwardWithoutIdentity_whenJwtIsMissing(String path) {
+        clearRequests();
+        int status = RestClient.create("http://localhost:" + gatewayPort).get().uri(path)
+                .header("X-User-Id", "999")
+                .header("X-User-Role", "ADMIN")
+                .exchange((request, response) -> response.getStatusCode().value());
+
+        assertThat(status).isEqualTo(200);
+        assertThat(POST_REQUESTS).singleElement().satisfies(request -> {
+            assertThat(request.requestTarget()).isEqualTo(path);
+            assertThat(headerValue(request, "X-User-Id")).isNull();
+            assertThat(headerValue(request, "X-User-Role")).isNull();
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/posts/42/engagement",
+            "/api/posts/42/comments/7/engagement"
+    })
+    @DisplayName("engagementSummary_shouldForwardJwtIdentity_whenJwtIsValid")
+    void engagementSummary_shouldForwardJwtIdentity_whenJwtIsValid(String path) {
+        clearRequests();
+        int status = RestClient.create("http://localhost:" + gatewayPort).get().uri(path)
+                .header("Authorization", bearer(TestJwtSupport.accessToken("USER")))
+                .header("X-User-Id", "999")
+                .header("X-User-Role", "MODERATOR")
+                .exchange((request, response) -> response.getStatusCode().value());
+
+        assertThat(status).isEqualTo(200);
+        assertThat(POST_REQUESTS).singleElement().satisfies(request -> {
+            assertThat(headerValue(request, "X-User-Id")).isEqualTo("42");
+            assertThat(headerValue(request, "X-User-Role")).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("engagementSummary_shouldRejectInvalidJwt_withoutForwardingSpoofedIdentity")
+    void engagementSummary_shouldRejectInvalidJwt_withoutForwardingSpoofedIdentity() {
+        clearRequests();
+        int status = RestClient.create("http://localhost:" + gatewayPort).get()
+                .uri("/api/posts/42/engagement")
+                .header("Authorization", bearer("not-a-jwt"))
+                .header("X-User-Id", "999")
+                .exchange((request, response) -> response.getStatusCode().value());
+
+        assertThat(status).isEqualTo(401);
+        assertThat(POST_REQUESTS).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/posts/42/engagement/extra",
+            "/api/posts/42/comments/7/engagement/extra"
+    })
+    @DisplayName("engagementException_shouldNotApplyToUnintendedGetPaths")
+    void engagementException_shouldNotApplyToUnintendedGetPaths(String path) {
+        clearRequests();
+
+        assertThat(exchangeStatus("GET", path, null)).isEqualTo(401);
+        assertThat(POST_REQUESTS).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/posts/42/engagement",
+            "/api/posts/42/comments/7/engagement"
+    })
+    @DisplayName("engagementException_shouldNotApplyToOtherMethods")
+    void engagementException_shouldNotApplyToOtherMethods(String path) {
+        clearRequests();
+        int status = RestClient.create("http://localhost:" + gatewayPort).post().uri(path)
+                .exchange((request, response) -> response.getStatusCode().value());
+
+        assertThat(status).isEqualTo(401);
+        assertThat(POST_REQUESTS).isEmpty();
+    }
+
+    @Test
+    @DisplayName("existingPublicPostEndpoint_shouldStillStripIdentity_whenJwtIsValid")
+    void existingPublicPostEndpoint_shouldStillStripIdentity_whenJwtIsValid() {
+        clearRequests();
+        int status = RestClient.create("http://localhost:" + gatewayPort).get().uri("/api/posts")
+                .header("Authorization", bearer(TestJwtSupport.accessToken("USER")))
+                .header("X-User-Id", "999")
+                .header("X-User-Role", "ADMIN")
+                .exchange((request, response) -> response.getStatusCode().value());
+
+        assertThat(status).isEqualTo(200);
+        assertThat(POST_REQUESTS).singleElement().satisfies(request -> {
+            assertThat(headerValue(request, "X-User-Id")).isNull();
+            assertThat(headerValue(request, "X-User-Role")).isNull();
+        });
     }
 
     @Test

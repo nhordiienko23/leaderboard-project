@@ -2,6 +2,7 @@ package com.github.nhordiienko23.postservice.service;
 
 import com.github.nhordiienko23.postservice.dto.CommentCreationRequest;
 import com.github.nhordiienko23.postservice.dto.CommentDTO;
+import com.github.nhordiienko23.postservice.dto.CommentEngagementResponse;
 import com.github.nhordiienko23.postservice.dto.CommentUpdateRequest;
 import com.github.nhordiienko23.postservice.enums.UserRole;
 import org.springframework.data.domain.Page;
@@ -23,6 +24,12 @@ public interface CommentService {
     CommentDTO getComment(
             Long postId,
             Long commentId
+    );
+
+    CommentEngagementResponse getEngagement(
+            Long postId,
+            Long commentId,
+            Long viewerId
     );
 
     CommentDTO updateComment(

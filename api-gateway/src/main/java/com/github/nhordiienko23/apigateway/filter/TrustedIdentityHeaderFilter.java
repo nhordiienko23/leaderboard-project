@@ -41,7 +41,7 @@ public class TrustedIdentityHeaderFilter extends OncePerRequestFilter {
         }
 
         Map<String, List<String>> replacementHeaders = new LinkedHashMap<>();
-        if (!isPublicRequest(request)) {
+        if (!isPublicRequest(request) || isEngagementSummaryRequest(request)) {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication instanceof JwtAuthenticationToken jwtAuthentication) {
                 if (requiresUserId(request)) {
@@ -77,10 +77,12 @@ public class TrustedIdentityHeaderFilter extends OncePerRequestFilter {
         }
 
         if (HttpMethod.GET.matches(method)) {
-            if (pathMatcher.match("/api/posts", path)
+            if (pathMatcher.match("/api/users/{id}/summary", path)
+                    || pathMatcher.match("/api/posts", path)
                     || pathMatcher.match("/api/posts/{id}", path)
                     || pathMatcher.match("/api/posts/{postId}/comments", path)
                     || pathMatcher.match("/api/posts/{postId}/comments/{commentId}", path)
+                    || isEngagementSummaryRequest(request)
                     || pathMatcher.match("/api/leaderboard/top-10", path)
                     || pathMatcher.match("/api/leaderboard/top-100", path)) {
                 return true;
@@ -92,6 +94,10 @@ public class TrustedIdentityHeaderFilter extends OncePerRequestFilter {
     private boolean requiresUserId(HttpServletRequest request) {
         String method = request.getMethod();
         String path = request.getRequestURI();
+
+        if (isEngagementSummaryRequest(request)) {
+            return true;
+        }
 
         if (pathMatcher.match(USER_PREFIX, path)
                 || pathMatcher.match(ADMIN_USERS_PREFIX, path)) {
@@ -131,6 +137,15 @@ public class TrustedIdentityHeaderFilter extends OncePerRequestFilter {
         }
         return pathMatcher.match("/api/posts/{postId}/comments/{commentId}", path)
                 && isOneOf(method, HttpMethod.PUT.name(), HttpMethod.DELETE.name());
+    }
+
+    private boolean isEngagementSummaryRequest(HttpServletRequest request) {
+        if (!HttpMethod.GET.matches(request.getMethod())) {
+            return false;
+        }
+        String path = request.getRequestURI();
+        return pathMatcher.match("/api/posts/{postId}/engagement", path)
+                || pathMatcher.match("/api/posts/{postId}/comments/{commentId}/engagement", path);
     }
 
     private boolean isOneOf(String value, String... candidates) {
@@ -201,4 +216,3 @@ public class TrustedIdentityHeaderFilter extends OncePerRequestFilter {
         }
     }
 }
-

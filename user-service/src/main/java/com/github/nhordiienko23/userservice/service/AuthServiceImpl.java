@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -65,7 +66,9 @@ public class AuthServiceImpl implements AuthService {
                         INVALID_CREDENTIALS_MESSAGE
                 ));
 
-        return issueTokens(user);
+        TokenResponse tokens = issueTokens(user);
+        user.setLastLoginAt(LocalDateTime.now());
+        return tokens;
     }
 
     @Override
