@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@theme {
+  --color-lb-background: #0F1117;
+  --color-lb-surface: #171A23;
+  --color-lb-elevated: #1C202C;
+  --color-lb-border: #2A2F3D;
+  --color-lb-primary: #7C3AED;
+  --color-lb-primary-hover: #8B5CF6;
+  --color-lb-text: #F4F4F5;
+  --color-lb-muted: #A1A1AA;
+  --color-lb-subtle: #71717A;
+  --color-lb-success: #22C55E;
+  --color-lb-warning: #F59E0B;
+  --color-lb-error: #EF4444;
+  --color-lb-focus: #A78BFA;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-dialog: 1rem;
+}
+
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #F4F4F5;
+  background: #0F1117;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #0F1117;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #0F1117;
+  color: #F4F4F5;
+  line-height: 1.5;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+:focus-visible {
+  outline: 2px solid #A78BFA;
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(124, 58, 237, 0.45);
+  color: #F4F4F5;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

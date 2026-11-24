@@ -2,6 +2,7 @@ package com.github.nhordiienko23.postservice.controller;
 
 import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
 import com.github.nhordiienko23.postservice.dto.PostDTO;
+import com.github.nhordiienko23.postservice.dto.PostEngagementResponse;
 import com.github.nhordiienko23.postservice.dto.PostUpdateRequest;
 import com.github.nhordiienko23.postservice.enums.UserRole;
 import com.github.nhordiienko23.postservice.service.PostService;
@@ -43,6 +44,19 @@ public class PostController {
     @GetMapping("/{id}")
     public ResponseEntity<PostDTO> getPost(@PathVariable Long id) {
         return ResponseEntity.ok(postService.getPostById(id));
+    }
+
+    @GetMapping("/{postId}/engagement")
+    public ResponseEntity<PostEngagementResponse> getEngagement(
+            @PathVariable Long postId,
+            @RequestHeader(
+                    value = "X-User-Id",
+                    required = false
+            ) Long viewerId
+    ) {
+        return ResponseEntity.ok(
+                postService.getEngagement(postId, viewerId)
+        );
     }
 
     @GetMapping

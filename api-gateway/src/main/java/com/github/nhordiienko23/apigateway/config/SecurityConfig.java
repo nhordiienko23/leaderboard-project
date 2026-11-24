@@ -44,10 +44,13 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.GET,
+                                "/api/users/{id}/summary",
                                 "/api/posts",
                                 "/api/posts/{id}",
                                 "/api/posts/{postId}/comments",
                                 "/api/posts/{postId}/comments/{commentId}",
+                                "/api/posts/{postId}/engagement",
+                                "/api/posts/{postId}/comments/{commentId}/engagement",
                                 "/api/leaderboard/top-10",
                                 "/api/leaderboard/top-100").permitAll()
                         .requestMatchers("/api/admin/users/**").access(adminRoleManager())

@@ -18,12 +18,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -93,9 +96,19 @@ class AuthServiceImplTest {
         when(jwtService.getAccessTokenTtlSeconds())
                 .thenReturn(ACCESS_TOKEN_TTL_SECONDS);
 
+        LocalDateTime before = LocalDateTime.now();
         TokenResponse result = service.login(
                 new LoginRequest("  user@example.com  ", PASSWORD)
         );
+        LocalDateTime firstLogin = user.getLastLoginAt();
+        assertTrue(firstLogin != null && !firstLogin.isBefore(before)
+                && !firstLogin.isAfter(LocalDateTime.now()));
+
+        LocalDateTime beforeSecondLogin = LocalDateTime.now();
+        service.login(new LoginRequest("user@example.com", PASSWORD));
+        assertTrue(!user.getLastLoginAt().isBefore(firstLogin)
+                && !user.getLastLoginAt().isBefore(beforeSecondLogin)
+                && !user.getLastLoginAt().isAfter(LocalDateTime.now()));
 
         assertEquals(
                 new TokenResponse(
@@ -104,10 +117,29 @@ class AuthServiceImplTest {
                 result
         );
 
-        verify(userService).findUserByUsernameOrEmail("user@example.com");
-        verify(passwordEncoder).matches(PASSWORD, user.getPassword());
-        verify(jwtService).createAccessToken(user);
-        verify(refreshTokenService).create(USER_ID);
+        verify(userService, times(2)).findUserByUsernameOrEmail("user@example.com");
+        verify(passwordEncoder, times(2)).matches(PASSWORD, user.getPassword());
+        verify(jwtService, times(2)).createAccessToken(user);
+        verify(refreshTokenService, times(2)).create(USER_ID);
+    }
+
+    @Test
+    @DisplayName("Should replace a previous login timestamp")
+    void loginUpdatesPreviousLoginTimestamp() {
+        User user = user(USER_ID, UserRole.USER);
+        LocalDateTime previousLogin = LocalDateTime.of(2020, 1, 1, 0, 0);
+        user.setLastLoginAt(previousLogin);
+        when(userService.findUserByUsernameOrEmail("user"))
+                .thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(PASSWORD, user.getPassword())).thenReturn(true);
+        when(jwtService.createAccessToken(user)).thenReturn(ACCESS_TOKEN);
+        when(refreshTokenService.create(USER_ID)).thenReturn(REFRESH_TOKEN);
+        when(jwtService.getAccessTokenTtlSeconds())
+                .thenReturn(ACCESS_TOKEN_TTL_SECONDS);
+
+        service.login(new LoginRequest("user", PASSWORD));
+
+        assertTrue(user.getLastLoginAt().isAfter(previousLogin));
     }
 
     @Test
@@ -166,6 +198,8 @@ class AuthServiceImplTest {
     @DisplayName("Should reject login when the password does not match")
     void loginRejectsIncorrectPassword() {
         User user = user(USER_ID, UserRole.USER);
+        LocalDateTime previousLogin = LocalDateTime.of(2020, 1, 1, 0, 0);
+        user.setLastLoginAt(previousLogin);
 
         when(userService.findUserByUsernameOrEmail("user"))
                 .thenReturn(Optional.of(user));
@@ -178,6 +212,27 @@ class AuthServiceImplTest {
 
         verify(passwordEncoder).matches(PASSWORD, user.getPassword());
         verifyNoInteractions(jwtService, refreshTokenService);
+        assertEquals(previousLogin, user.getLastLoginAt());
+    }
+
+    @Test
+    @DisplayName("Should preserve the login timestamp when token issuance fails")
+    void loginPreservesTimestampWhenTokenIssuanceFails() {
+        User user = user(USER_ID, UserRole.USER);
+        LocalDateTime previousLogin = LocalDateTime.of(2020, 1, 1, 0, 0);
+        user.setLastLoginAt(previousLogin);
+
+        when(userService.findUserByUsernameOrEmail("user"))
+                .thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(PASSWORD, user.getPassword())).thenReturn(true);
+        when(jwtService.createAccessToken(user)).thenReturn(ACCESS_TOKEN);
+        when(refreshTokenService.create(USER_ID)).thenReturn(REFRESH_TOKEN);
+        when(jwtService.getAccessTokenTtlSeconds())
+                .thenThrow(new IllegalStateException("Token issuance failed"));
+
+        assertThrows(IllegalStateException.class,
+                () -> service.login(new LoginRequest("user", PASSWORD)));
+        assertEquals(previousLogin, user.getLastLoginAt());
     }
 
     @Test

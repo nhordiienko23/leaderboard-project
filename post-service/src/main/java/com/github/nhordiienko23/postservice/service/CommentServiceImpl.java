@@ -5,6 +5,7 @@ import com.github.nhordiienko23.leaderboardcontract.event.EventReason;
 import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import com.github.nhordiienko23.postservice.dto.CommentCreationRequest;
 import com.github.nhordiienko23.postservice.dto.CommentDTO;
+import com.github.nhordiienko23.postservice.dto.CommentEngagementResponse;
 import com.github.nhordiienko23.postservice.dto.CommentUpdateRequest;
 import com.github.nhordiienko23.postservice.entity.Comment;
 import com.github.nhordiienko23.postservice.entity.OutboxEntry;
@@ -15,6 +16,7 @@ import com.github.nhordiienko23.postservice.exception.notfound.PostNotFoundExcep
 import com.github.nhordiienko23.postservice.mapper.CommentMapper;
 import com.github.nhordiienko23.postservice.mapper.OutboxEntryMapper;
 import com.github.nhordiienko23.postservice.repository.CommentRepository;
+import com.github.nhordiienko23.postservice.repository.LikeRepository;
 import com.github.nhordiienko23.postservice.repository.OutboxRepository;
 import com.github.nhordiienko23.postservice.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class CommentServiceImpl implements CommentService {
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
+    private final LikeRepository likeRepository;
     private final OutboxRepository outboxRepository;
     private final OutboxEntryMapper outboxEntryMapper;
     private final LeaderboardParticipantsJsonFactory participantsJsonFactory;
@@ -104,6 +107,30 @@ public class CommentServiceImpl implements CommentService {
     public CommentDTO getComment(Long postId, Long commentId) {
         findPost(postId);
         return commentMapper.toDTO(findComment(postId, commentId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CommentEngagementResponse getEngagement(
+            Long postId,
+            Long commentId,
+            Long viewerId
+    ) {
+        findPost(postId);
+
+        if (!commentRepository.existsByIdAndPost_Id(commentId, postId)) {
+            throw new CommentNotFoundException(commentId, postId);
+        }
+
+        long likeCount = likeRepository.countByComment_Id(commentId);
+        Boolean likedByMe = viewerId == null
+                ? null
+                : likeRepository.existsByUserIdAndComment_Id(
+                        viewerId,
+                        commentId
+                );
+
+        return new CommentEngagementResponse(likeCount, likedByMe);
     }
 
     @Override

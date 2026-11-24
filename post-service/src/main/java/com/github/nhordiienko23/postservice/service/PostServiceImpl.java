@@ -5,6 +5,7 @@ import com.github.nhordiienko23.leaderboardcontract.event.EventReason;
 import com.github.nhordiienko23.leaderboardcontract.event.EventType;
 import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
 import com.github.nhordiienko23.postservice.dto.PostDTO;
+import com.github.nhordiienko23.postservice.dto.PostEngagementResponse;
 import com.github.nhordiienko23.postservice.dto.PostUpdateRequest;
 import com.github.nhordiienko23.postservice.entity.Comment;
 import com.github.nhordiienko23.postservice.entity.OutboxEntry;
@@ -15,6 +16,7 @@ import com.github.nhordiienko23.postservice.exception.notfound.PostNotFoundExcep
 import com.github.nhordiienko23.postservice.mapper.OutboxEntryMapper;
 import com.github.nhordiienko23.postservice.mapper.PostMapper;
 import com.github.nhordiienko23.postservice.repository.CommentRepository;
+import com.github.nhordiienko23.postservice.repository.LikeRepository;
 import com.github.nhordiienko23.postservice.repository.OutboxRepository;
 import com.github.nhordiienko23.postservice.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class PostServiceImpl implements PostService {
     private final PostMapper postMapper;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final LikeRepository likeRepository;
     private final OutboxEntryMapper outboxEntryMapper;
     private final OutboxRepository outboxRepository;
     private final LikeService likeService;
@@ -136,6 +139,34 @@ public class PostServiceImpl implements PostService {
     public Page<PostDTO> getAllPosts(Pageable pageable) {
         return postRepository.findAll(pageable)
                 .map(postMapper::toDTO);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PostEngagementResponse getEngagement(
+            Long postId,
+            Long viewerId
+    ) {
+        if (!postRepository.existsById(postId)) {
+            throw new PostNotFoundException(
+                    "Post with id=" + postId + " not found"
+            );
+        }
+
+        long likeCount = likeRepository.countByPost_Id(postId);
+        long commentCount = commentRepository.countByPost_Id(postId);
+        Boolean likedByMe = viewerId == null
+                ? null
+                : likeRepository.existsByUserIdAndPost_Id(
+                        viewerId,
+                        postId
+                );
+
+        return new PostEngagementResponse(
+                likeCount,
+                commentCount,
+                likedByMe
+        );
     }
 
     @Override

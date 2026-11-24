@@ -2,6 +2,7 @@ package com.github.nhordiienko23.postservice.service;
 
 import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
 import com.github.nhordiienko23.postservice.dto.PostDTO;
+import com.github.nhordiienko23.postservice.dto.PostEngagementResponse;
 import com.github.nhordiienko23.postservice.dto.PostUpdateRequest;
 import com.github.nhordiienko23.postservice.enums.UserRole;
 import org.springframework.data.domain.Page;
@@ -16,6 +17,8 @@ public interface PostService {
     PostDTO getPostById(Long id);
 
     Page<PostDTO> getAllPosts(Pageable pageable);
+
+    PostEngagementResponse getEngagement(Long postId, Long viewerId);
 
     PostDTO updatePost(
             Long actorId,

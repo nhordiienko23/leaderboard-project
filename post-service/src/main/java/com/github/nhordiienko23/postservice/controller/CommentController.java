@@ -2,6 +2,7 @@ package com.github.nhordiienko23.postservice.controller;
 
 import com.github.nhordiienko23.postservice.dto.CommentCreationRequest;
 import com.github.nhordiienko23.postservice.dto.CommentDTO;
+import com.github.nhordiienko23.postservice.dto.CommentEngagementResponse;
 import com.github.nhordiienko23.postservice.dto.CommentUpdateRequest;
 import com.github.nhordiienko23.postservice.enums.UserRole;
 import com.github.nhordiienko23.postservice.service.CommentService;
@@ -52,6 +53,24 @@ public class CommentController {
     ) {
         return ResponseEntity.ok(
                 commentService.getComment(postId, commentId)
+        );
+    }
+
+    @GetMapping("/{commentId}/engagement")
+    public ResponseEntity<CommentEngagementResponse> getEngagement(
+            @PathVariable Long postId,
+            @PathVariable Long commentId,
+            @RequestHeader(
+                    value = "X-User-Id",
+                    required = false
+            ) Long viewerId
+    ) {
+        return ResponseEntity.ok(
+                commentService.getEngagement(
+                        postId,
+                        commentId,
+                        viewerId
+                )
         );
     }
 
