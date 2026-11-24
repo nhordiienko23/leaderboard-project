@@ -99,6 +99,11 @@ public class TrustedIdentityHeaderFilter extends OncePerRequestFilter {
             return true;
         }
 
+        if (HttpMethod.GET.matches(method)
+                && pathMatcher.match("/api/posts/users/{userId}/activity", path)) {
+            return true;
+        }
+
         if (pathMatcher.match(USER_PREFIX, path)
                 || pathMatcher.match(ADMIN_USERS_PREFIX, path)) {
             return true;

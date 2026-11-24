@@ -4,9 +4,12 @@ import com.github.nhordiienko23.postservice.dto.PostCreationRequest;
 import com.github.nhordiienko23.postservice.dto.PostDTO;
 import com.github.nhordiienko23.postservice.dto.PostEngagementResponse;
 import com.github.nhordiienko23.postservice.dto.PostUpdateRequest;
+import com.github.nhordiienko23.postservice.dto.ProfileActivityResponse;
 import com.github.nhordiienko23.postservice.enums.UserRole;
 import com.github.nhordiienko23.postservice.service.PostService;
+import com.github.nhordiienko23.postservice.service.ProfileActivityService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
@@ -21,6 +24,15 @@ import org.springframework.web.bind.annotation.*;
 public class PostController {
 
     private final PostService postService;
+    private final ProfileActivityService profileActivityService;
+
+    @GetMapping("/users/{userId}/activity")
+    public ResponseEntity<ProfileActivityResponse> getUserActivity(
+            @PathVariable @Positive Long userId,
+            @RequestHeader("X-User-Id") Long viewerId
+    ) {
+        return ResponseEntity.ok(profileActivityService.getActivity(userId));
+    }
 
     @PostMapping
     public ResponseEntity<PostDTO> createPost(

@@ -108,6 +108,7 @@ class TrustedIdentityHeaderFilterTest {
                 "DELETE,/api/admin/users/7",
                 "PATCH,/api/admin/users/7/password",
                 "PATCH,/api/admin/users/7/role",
+                "GET,/api/posts/users/7/activity",
                 "POST,/api/posts",
                 "POST,/api/posts/42/comments",
                 "POST,/api/posts/42/likes",

@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Spinner } from '../../components/ui/Spinner'
 import { ForbiddenPage, NotFoundPage } from '../ErrorPages'
+import { ProfileActivity } from '../../features/users/ProfileActivity'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-US', {
@@ -77,7 +78,7 @@ export function UserProfilePage() {
         </div>
       )}
 
-      {!loading && !error && user && (
+      {!loading && !error && user?.id === userId && (
         <Card className="mx-auto max-w-2xl p-6 sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -115,6 +116,7 @@ export function UserProfilePage() {
               </dd>
             </div>
           </dl>
+          <ProfileActivity key={userId} userId={userId} />
         </Card>
       )}
     </section>

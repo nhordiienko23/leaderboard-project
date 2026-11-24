@@ -77,14 +77,14 @@ export function CommentItem({ comment, onUpdated, onDeleted }: CommentItemProps)
 
   return (
     <>
-      <article className="rounded-xl border border-lb-border bg-lb-surface p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+      <article className="min-w-0 rounded-xl border border-lb-border bg-lb-surface p-4">
+        <div className="flex min-w-0 flex-col items-start justify-between gap-4 sm:flex-row">
+          <div className="min-w-0 w-full flex-1">
             <p className="text-xs font-medium text-lb-muted"><UserName userId={comment.userId} /></p>
-            <p className="mt-2 whitespace-pre-wrap wrap-break-word text-sm text-lb-text">{comment.content}</p>
+            <p className="mt-2 whitespace-break-spaces wrap-anywhere text-sm text-lb-text">{comment.content}</p>
           </div>
           {canMutate && (
-            <div className="flex shrink-0 gap-1">
+            <div className="flex max-w-full flex-wrap gap-1">
               <Button variant="ghost" icon={<Pencil size={16} aria-hidden="true" />} aria-label={`Edit comment ${comment.id}`} onClick={() => { setContent(comment.content); setFieldError(undefined); setError(undefined); setEditOpen(true) }}>Edit</Button>
               <Button variant="ghost" icon={<Trash2 size={16} aria-hidden="true" />} aria-label={`Delete comment ${comment.id}`} onClick={() => { setError(undefined); setDeleteOpen(true) }}>Delete</Button>
             </div>
@@ -111,7 +111,7 @@ export function CommentItem({ comment, onUpdated, onDeleted }: CommentItemProps)
             {fieldError ?? `${content.length}/1000 characters`}
           </p>
           {error && <div className="mt-3"><Alert tone="error" title={httpErrorTitle(error)}>{error.message}</Alert></div>}
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
             <Button variant="secondary" disabled={pending} onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button loading={pending} disabled={!content.trim()} onClick={() => void save()}>Save changes</Button>
           </div>
@@ -120,7 +120,7 @@ export function CommentItem({ comment, onUpdated, onDeleted }: CommentItemProps)
 
       <Dialog open={deleteOpen} title="Delete comment" description="This action cannot be undone." onClose={() => !pending && setDeleteOpen(false)}>
         {error && <div className="mb-4"><Alert tone="error" title={httpErrorTitle(error)}>{error.message}</Alert></div>}
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <Button variant="secondary" disabled={pending} onClick={() => setDeleteOpen(false)}>Cancel</Button>
           <Button variant="danger" loading={pending} onClick={() => void remove()}>Delete comment</Button>
         </div>

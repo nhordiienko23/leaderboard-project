@@ -158,6 +158,32 @@ class ApiGatewayApplicationTests {
     }
 
     @Test
+    void activityRouteRequiresAuthenticationAndForwardsToPostService() {
+        clearRequests();
+        String path = "/api/posts/users/7/activity";
+        assertThat(exchangeStatus("GET", path, null)).isEqualTo(401);
+        assertThat(exchangeStatus("GET", path, bearer("not-a-jwt"))).isEqualTo(401);
+        RestClient gateway = RestClient.create("http://localhost:" + gatewayPort);
+        int forgedAnonymousStatus = gateway.get().uri(path)
+                .header("X-User-Id", "999")
+                .exchange((request, response) -> response.getStatusCode().value());
+        assertThat(forgedAnonymousStatus).isEqualTo(401);
+        assertThat(POST_REQUESTS).isEmpty();
+        int authenticatedStatus = gateway.get().uri(path)
+                .header("Authorization", bearer(TestJwtSupport.accessToken("USER")))
+                .header("X-User-Id", "999")
+                .header("X-User-Role", "ADMIN")
+                .exchange((request, response) -> response.getStatusCode().value());
+        assertThat(authenticatedStatus).isEqualTo(200);
+        assertThat(POST_REQUESTS).singleElement().satisfies(request -> {
+            assertThat(request.method()).isEqualTo("GET");
+            assertThat(request.requestTarget()).isEqualTo(path);
+            assertThat(headerValue(request, "X-User-Id")).isEqualTo("42");
+            assertThat(headerValue(request, "X-User-Role")).isNull();
+        });
+    }
+
+    @Test
     @DisplayName("protectedEndpoint_shouldReturnUnauthorized_whenTokenIsInvalid")
     void protectedEndpoint_shouldReturnUnauthorized_whenTokenIsInvalid() {
         clearRequests();
