@@ -6,10 +6,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.1</version>
-        <relativePath/>
+        <groupId>com.github.nhordiienko23</groupId>
+        <artifactId>leaderboard-project</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>com.github.nhordiienko23</groupId>
@@ -28,8 +28,6 @@
         <springdoc.version>3.1.0</springdoc.version>
         <testcontainers.version>2.0.2</testcontainers.version>
 
-        <!-- Default for Surefire's late property replacement. -->
-        <argLine/>
     </properties>
 
     <dependencies>
@@ -235,7 +233,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>@{argLine} -javaagent:"@{org.mockito:mockito-core:jar}"</argLine>
+                    <argLine>@{jacocoAgent} ${argLine} -javaagent:"@{org.mockito:mockito-core:jar}"</argLine>
                 </configuration>
             </plugin>
 
