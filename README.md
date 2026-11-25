@@ -9,7 +9,7 @@ A full-stack community platform where users publish posts, discuss them in comme
 
 Built with **Java, Spring Boot, React, and TypeScript**, the backend is structured as independent microservices communicating asynchronously via **Apache Kafka**, with **PostgreSQL** for durable storage and **Redis** for fast leaderboard reads.
 ## Demo
-https://github.com/user-attachments/assets/7cb2eaf5-a3ad-4b4e-9fd7-3adc2fb5f4a1
+https://github.com/user-attachments/assets/187ca50e-ccd5-4e40-bd6b-f77bb925630c
 
 ## Features
 
